@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cổ Phục Stylist - Nghệ Nhân Y Phục Truyền Thống Việt Nam</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👘</text></svg>">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Marked.js for parsing markdown in AI stylist chat -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Preload Banner Image for instant transition -->
+    <link rel="preload" as="image" href="/static/assets/intro_banner.jpg?v=2">
+
+    <!-- Custom CSS with cache-busting -->
+    <link rel="stylesheet" href="/static/css/style.css?v=20260920_3">
+    
+    <!-- Critical CSS for Instant Intro Splash Display -->
+    <style>
+        #intro-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            background: radial-gradient(circle at 50% 45%, #2a0e10 0%, #150607 65%, #0a0304 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.75s;
+            user-select: none;
+        }
+        #intro-splash.intro-hidden {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            transform: scale(1.05) !important;
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        imperial: {
+                            red: '#9E1A1A',
+                            crimson: '#7D1214',
+                            gold: '#D4AF37',
+                            mustard: '#C59B27',
+                            jade: '#1A5336',
+                            cream: '#FAF6EE',
+                            paper: '#FFFDF9',
+                            dark: '#171923'
+                        }
+                    },
+                    borderRadius: {
+                        '2xl': '1.25rem',
+                        '3xl': '1.75rem'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="text-stone-800 antialiased selection:bg-amber-200">
+
+    <!-- ============================================================= -->
+    <!-- ROYAL INTRO SPLASH & TRANSITION (Việt Phục Cổ Truyền)       -->
+    <!-- ============================================================= -->
+    <div id="intro-splash" class="fixed inset-0 z-[999999] flex flex-col items-center justify-center bg-[#150607] text-amber-100 select-none overflow-hidden">
+        <!-- Close / Skip Button Top Right -->
+        <button onclick="dismissIntroSplash()" title="Bỏ qua giới thiệu" class="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 px-3.5 py-1.5 rounded-full bg-black/60 hover:bg-black/90 border border-amber-500/50 text-amber-300 text-xs flex items-center space-x-1.5 backdrop-blur transition shadow-lg">
+            <span>Bỏ qua</span>
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+
+        <!-- Ambient Glowing Aura -->
+        <div class="intro-bg-glow"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(212,175,55,0.12)_0%,transparent_70%)] pointer-events-none"></div>
+
+        <!-- Central Relief Plaque Container -->
+        <div class="intro-plaque-wrapper relative" onclick="event.stopPropagation()">
+            <div class="intro-corner intro-corner-tl"></div>
+            <div class="intro-corner intro-corner-tr"></div>
+            <div class="intro-corner intro-corner-bl"></div>
+            <div class="intro-corner intro-corner-br"></div>
+
+            <div class="intro-plaque-inner relative group shadow-2xl bg-black">
+                <img id="intro-banner-img"
+                     src="/static/assets/intro_banner.jpg?v=2" 
+                     alt="Việt Phục Cổ Truyền - Tinh Hoa Y Phục Đại Việt" 
+                     class="intro-plaque-img w-full max-h-[62vh] md:max-h-[66vh] object-contain mx-auto" />
+                
+                <!-- Golden Shimmer Light Sweep -->
+                <div class="intro-shimmer"></div>
+            </div>
+        </div>
+
+        <!-- Subtitle & Action Bar -->
+        <div class="intro-caption flex flex-col items-center px-4 max-w-lg text-center mt-4 sm:mt-5 space-y-2.5 z-10" onclick="event.stopPropagation()">
+            <div class="inline-flex items-center space-x-2 bg-black/60 border border-amber-500/50 px-4 py-1 rounded-full text-xs text-amber-300 font-serif-vi tracking-widest shadow-md">
+                <span class="text-amber-400">✦</span>
+                <span class="font-bold tracking-wider">TINH HOA Y PHỤC ĐẠI VIỆT</span>
+                <span class="text-amber-400">✦</span>
+            </div>
+            
+            <p class="text-xs sm:text-sm text-amber-200/90 font-light tracking-wide max-w-md">
+                Chạm khắc hồn thiêng sông núi • Nét đẹp ngàn năm trang phục Việt
+            </p>
+
+            <!-- Loading / Countdown Progress Bar -->
+            <div class="intro-progress-track">
+                <div class="intro-progress-bar"></div>
+            </div>
+
+            <!-- Skip / Enter CTA Button -->
+            <button onclick="dismissIntroSplash()" class="mt-1 group px-6 py-2.5 rounded-full bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 border border-amber-300/80 text-amber-100 text-xs sm:text-sm font-semibold tracking-wider shadow-xl hover:shadow-amber-500/40 transition-all flex items-center space-x-2 active:scale-95 cursor-pointer">
+                <span>Khám Phá Cổ Phục Ngay</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition-transform"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- TAB SWITCH ROYAL TRANSITION (0.7s with corresponding words)   -->
+    <!-- ============================================================= -->
+    <div id="tab-transition-overlay" class="fixed inset-0 z-[99998] hidden flex-col items-center justify-center pointer-events-none select-none">
+        <!-- Ambient Glowing Aura -->
+        <div class="intro-bg-glow !w-[420px] !h-[420px]"></div>
+        
+        <!-- Tab Plaque Card with Brass Corners -->
+        <div class="tab-trans-card relative">
+            <div class="intro-corner intro-corner-tl !w-4 !h-4"></div>
+            <div class="intro-corner intro-corner-tr !w-4 !h-4"></div>
+            <div class="intro-corner intro-corner-bl !w-4 !h-4"></div>
+            <div class="intro-corner intro-corner-br !w-4 !h-4"></div>
+
+            <!-- Shimmer Light Sweep -->
+            <div class="tab-trans-shimmer"></div>
+
+            <!-- Top Nom / Han Character Medallion -->
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-b from-amber-500/30 to-red-950/60 border border-amber-400/70 flex items-center justify-center text-amber-300 font-bold text-2xl shadow-inner mb-2.5">
+                <span id="tab-trans-char">蓮</span>
+            </div>
+
+            <!-- Red Imperial Seal -->
+            <div class="mb-2">
+                <span id="tab-trans-seal" class="red-seal text-[11px] uppercase tracking-widest px-3 py-0.5 bg-red-950/70 border-amber-500/60 text-amber-300">
+                    VẤN ĐẠO Y PHỤC
+                </span>
+            </div>
+
+            <!-- Dynastic Tab Title -->
+            <h3 id="tab-trans-title" class="text-xl sm:text-2xl font-bold font-imperial text-amber-100 tracking-wider">
+                NGHỆ NHÂN TƯ VẤN
+            </h3>
+
+            <!-- Golden Light Rule Line -->
+            <div class="tab-trans-line"></div>
+
+            <!-- Subtitle -->
+            <p id="tab-trans-subtitle" class="text-xs text-amber-200/80 font-serif-vi mt-2 tracking-wide">
+                Đại Việt Tinh Hoa • Khai Mở Nét Duyên
+            </p>
+        </div>
+    </div>
+
+    <!-- Top Imperial Header -->
+    <header class="lacquer-header sticky top-0 z-40 shadow-lg px-4 lg:px-8 py-3.5">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('chat')">
+                <div class="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400 flex items-center justify-center text-amber-300 font-bold text-xl shadow-inner">
+                    <span>蓮</span>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="text-xl lg:text-2xl font-bold tracking-wide text-amber-100 font-imperial">CỔ PHỤC STYLIST</h1>
+                        <span class="red-seal text-xs hidden sm:inline-block">Đại Việt Tinh Hoa</span>
+                    </div>
+                    <p class="text-xs text-amber-200/90 tracking-wider">Trang Phục Truyền Thống + Hoàn Cảnh + Phong Cách Cá Nhân</p>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <nav class="hidden md:flex items-center space-x-1 lg:space-x-2 bg-black/25 backdrop-blur-md p-1.5 rounded-2xl border border-amber-500/30 text-sm">
+                <button onclick="switchTab('chat')" id="nav-chat" class="tab-btn active px-4 py-2 rounded-xl text-amber-100 transition flex items-center space-x-2">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
+                    <span>Nghệ Nhân Tư Vấn</span>
+                </button>
+                <button onclick="switchTab('studio')" id="nav-studio" class="tab-btn px-4 py-2 rounded-xl text-amber-200/90 hover:bg-white/10 transition flex items-center space-x-2">
+                    <i data-lucide="palette" class="w-4 h-4 text-amber-300"></i>
+                    <span>Phòng Mix Đồ</span>
+                </button>
+                <button onclick="switchTab('catalog')" id="nav-catalog" class="tab-btn px-4 py-2 rounded-xl text-amber-200/90 hover:bg-white/10 transition flex items-center space-x-2">
+                    <i data-lucide="book-open" class="w-4 h-4 text-amber-300"></i>
+                    <span>Bách Khoa Y Phục</span>
+                </button>
+                <button onclick="switchTab('generator')" id="nav-generator" class="tab-btn px-4 py-2 rounded-xl text-amber-200/90 hover:bg-white/10 transition flex items-center space-x-2">
+                    <i data-lucide="wand-2" class="w-4 h-4 text-amber-300"></i>
+                    <span>Gợi Ý Dịp & Vibe</span>
+                </button>
+            </nav>
+
+            <!-- Quick Action / Settings Button -->
+            <div class="flex items-center space-x-2">
+                <button onclick="playIntroSplash()" title="Xem lại màn giới thiệu phù điêu Việt Phục Cổ Truyền" class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs flex items-center space-x-1.5 border border-amber-400/40 transition">
+                    <i data-lucide="play-circle" class="w-4 h-4 text-amber-300"></i>
+                    <span class="hidden sm:inline">Xem Phù Điêu</span>
+                </button>
+                <button onclick="openSettingsModal()" class="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs flex items-center space-x-1.5 border border-amber-400/40 transition">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Cài Đặt</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Navigation bar -->
+        <div class="md:hidden flex items-center justify-around pt-3 mt-2 border-t border-amber-500/20 text-xs">
+            <button onclick="switchTab('chat')" id="mob-chat" class="text-amber-300 flex flex-col items-center py-1">
+                <i data-lucide="sparkles" class="w-4 h-4 mb-0.5"></i>
+                <span>Tư Vấn</span>
+            </button>
+            <button onclick="switchTab('studio')" id="mob-studio" class="text-amber-100/70 flex flex-col items-center py-1">
+                <i data-lucide="palette" class="w-4 h-4 mb-0.5"></i>
+                <span>Mix Đồ</span>
+            </button>
+            <button onclick="switchTab('catalog')" id="mob-catalog" class="text-amber-100/70 flex flex-col items-center py-1">
+                <i data-lucide="book-open" class="w-4 h-4 mb-0.5"></i>
+                <span>Bách Khoa</span>
+            </button>
+            <button onclick="switchTab('generator')" id="mob-generator" class="text-amber-100/70 flex flex-col items-center py-1">
+                <i data-lucide="wand-2" class="w-4 h-4 mb-0.5"></i>
+                <span>Gợi Ý</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 lg:px-8 py-6">
+
+        <!-- ============================================================= -->
+        <!-- TAB 1: AI STYLIST SALON (Nghệ Nhân Tư Vấn) -->
+        <!-- ============================================================= -->
+        <section id="tab-chat" class="space-y-6">
+            <!-- Salon Intro Banner with Dong Son & Formula note -->
+            <div class="lacquer-card p-6 lg:p-8 bg-gradient-to-r from-amber-50/90 via-[#FAF6EE] to-amber-50/90 relative overflow-hidden">
+                <div class="corner-ornament corner-tl"></div>
+                <div class="corner-ornament corner-tr"></div>
+                <div class="corner-ornament corner-bl"></div>
+                <div class="corner-ornament corner-br"></div>
+
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div class="space-y-2 max-w-2xl">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="px-3 py-0.5 rounded-full bg-amber-200/80 text-amber-900 text-xs font-semibold uppercase tracking-wider">App mix đồ + hướng dẫn văn hóa</span>
+                            <span class="red-seal text-[11px]">Tranh Dân Gian Palette</span>
+                        </div>
+                        <h2 class="text-2xl lg:text-3xl font-bold text-stone-900 font-imperial tracking-tight">Hỏi Nghệ Nhân Cổ Phục</h2>
+                        <p class="text-sm text-stone-600 leading-relaxed font-serif-vi">
+                            Công thức hòa phối đỉnh cao: <strong>Y Phục Truyền Thống + Hoàn Cảnh/Dịp + Vibe Cá Nhân</strong>. Chia sẻ mong muốn của bạn để nhận tư vấn trọn bộ từ màu áo, quần/váy, giày, túi, khăn/nón đến trang sức và kiểu tóc!
+                        </p>
+                    </div>
+
+                    <!-- Quick Prompt Suggestions Chips based on Google Sheet -->
+                    <div class="flex flex-wrap gap-2 md:max-w-md">
+                        <button onclick="sendQuickPrompt('Tư vấn bộ Áo Bà Ba mộc mạc, phóng khoáng để đi chụp ảnh miền Tây sông nước')" class="text-xs bg-white hover:bg-amber-100 text-stone-700 hover:text-amber-900 border border-amber-200 px-3 py-1.5 rounded-full transition shadow-xs flex items-center space-x-1.5">
+                            <span>🌾 Áo Bà Ba dạo sông nước</span>
+                        </button>
+                        <button onclick="sendQuickPrompt('Tôi muốn mặc Áo Dài trắng thanh lịch dự sự kiện trường học và chụp kỷ yếu')" class="text-xs bg-white hover:bg-amber-100 text-stone-700 hover:text-amber-900 border border-amber-200 px-3 py-1.5 rounded-full transition shadow-xs flex items-center space-x-1.5">
+                            <span>🎓 Áo Dài thanh lịch sự kiện trường</span>
+                        </button>
+                        <button onclick="sendQuickPrompt('Gợi ý trang phục dân tộc thổ cẩm cá tính cho chuyến du lịch Tây Bắc')" class="text-xs bg-white hover:bg-amber-100 text-stone-700 hover:text-amber-900 border border-amber-200 px-3 py-1.5 rounded-full transition shadow-xs flex items-center space-x-1.5">
+                            <span>⛰️ Thổ cẩm Tây Bắc cá tính</span>
+                        </button>
+                        <button onclick="sendQuickPrompt('Tư vấn trang phục cưới truyền thống cô dâu Áo Nhật Bình và chú rể Áo Tấc')" class="text-xs bg-white hover:bg-amber-100 text-stone-700 hover:text-amber-900 border border-amber-200 px-3 py-1.5 rounded-full transition shadow-xs flex items-center space-x-1.5">
+                            <span>👰 Hôn lễ Nhật Bình & Áo Tấc</span>
+                        </button>
+                        <button onclick="sendQuickPrompt('Nam giới mặc Áo Ngũ Thân phong cách tối giản đi lễ chùa đầu năm')" class="text-xs bg-white hover:bg-amber-100 text-stone-700 hover:text-amber-900 border border-amber-200 px-3 py-1.5 rounded-full transition shadow-xs flex items-center space-x-1.5">
+                            <span>☸️ Áo Ngũ Thân tối giản đi chùa</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Chat Stream (8 cols) -->
+                <div class="lg:col-span-8 flex flex-col h-[650px] lacquer-card overflow-hidden">
+                    <div class="p-4 border-b border-amber-200/60 bg-amber-50/50 flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-9 h-9 rounded-2xl bg-red-800 text-amber-200 flex items-center justify-center font-bold text-sm shadow">
+                                <span>Tư</span>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-stone-900 text-sm">Cô Tư Cổ Phục (AI Stylist)</h3>
+                                <p class="text-xs text-stone-500">Am tường phong tục, điển lễ may mặc & thẩm mỹ Việt</p>
+                            </div>
+                        </div>
+                        <button onclick="clearChat()" class="text-xs text-stone-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-amber-100 transition" title="Làm mới cuộc trò chuyện">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div id="chat-messages" class="flex-1 p-4 lg:p-6 overflow-y-auto space-y-4 bg-[#FAF6EE]/40">
+                        <!-- Welcome message -->
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-2xl bg-red-800 text-amber-200 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow">
+                                <span>Tư</span>
+                            </div>
+                            <div class="stylist-bubble p-4 max-w-2xl text-sm leading-relaxed text-stone-800">
+                                <p class="font-serif-vi mb-2 text-red-900 font-semibold">Kính chào quý bạn hữu,</p>
+                                <p class="mb-2">Tôi là <strong>Cô Tư</strong>, nghệ nhân đồng hành cùng bạn tìm kiếm bộ y phục ưng ý theo đúng công thức: <strong>Trang phục truyền thống + Hoàn cảnh + Phong cách riêng</strong>.</p>
+                                <p class="text-stone-600">Dù là Áo Dài, Áo Ngũ Thân, Áo Tứ Thân, Áo Bà Ba Nam Bộ hay Trang Phục Dân Tộc thổ cẩm, hãy cho tôi biết dịp mặc và phong cách bạn yêu thích để tôi tư vấn chuẩn mực nhé!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-white border-t border-amber-200/70">
+                        <form id="chat-form" onsubmit="handleChatSubmit(event)" class="flex items-end space-x-2">
+                            <div class="flex-1 bg-stone-50 border border-stone-200 rounded-2xl p-2.5 focus-within:ring-2 focus-within:ring-amber-500/50 focus-within:border-amber-500 transition">
+                                <textarea id="chat-input" rows="2" placeholder="Nhập câu hỏi: Dịp mặc (Tết, chùa, cưới, trường...), phong cách (thanh lịch, tối giản, cá tính...), hoặc trang phục mong muốn..." class="w-full bg-transparent resize-none border-0 text-sm focus:outline-none text-stone-800 placeholder-stone-400"></textarea>
+                            </div>
+                            <button type="submit" id="chat-submit-btn" class="px-5 py-3 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-medium text-sm flex items-center space-x-2 shadow-md hover:shadow-lg transition">
+                                <span>Gửi</span>
+                                <i data-lucide="send" class="w-4 h-4"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Right Side: Look Preview Card (4 cols) -->
+                <div class="lg:col-span-4 flex flex-col space-y-4">
+                    <div class="lacquer-card p-5 h-full flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between border-b border-amber-200/80 pb-3 mb-4">
+                                <h3 class="font-imperial font-bold text-stone-900 text-lg flex items-center space-x-2">
+                                    <i data-lucide="sparkle" class="w-4 h-4 text-amber-600"></i>
+                                    <span>Tạo Hình Gợi Ý</span>
+                                </h3>
+                                <span class="red-seal text-[11px]" id="look-dynasty-badge">Đại Việt</span>
+                            </div>
+
+                            <div id="look-preview-container" class="space-y-4">
+                                <div class="text-center py-8 text-stone-400 text-sm font-serif-vi">
+                                    <i data-lucide="shirt" class="w-12 h-12 mx-auto mb-2 text-stone-300 stroke-1"></i>
+                                    <p>Khi bạn trò chuyện, các chi tiết phối đồ (áo, quần, giày, túi, khăn, trang sức, tóc) sẽ kết tinh tại đây.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="look-preview-action" class="pt-4 border-t border-amber-200/70 hidden">
+                            <button onclick="applyLookToStudio()" class="w-full py-3 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-medium text-sm flex items-center justify-center space-x-2 shadow transition">
+                                <i data-lucide="palette" class="w-4 h-4"></i>
+                                <span>Thử Ngay Trên Người Mẫu Ảo</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- TAB 2: VIRTUAL FITTING & MIX STUDIO (Phòng Mix Đồ Ảo) -->
+        <!-- ============================================================= -->
+        <section id="tab-studio" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                <!-- Left: Dynamic Visualizer Avatar Stage (5 cols) -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div class="visualizer-wrapper h-[560px] flex items-center justify-center p-4">
+                        <div id="avatar-stage" class="w-full h-full flex items-center justify-center">
+                            <!-- Injected SVG from TraditionalVisualizer -->
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <button onclick="openExportModal()" class="flex-1 py-3 px-4 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-medium text-sm flex items-center justify-center space-x-2 shadow-md transition">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            <span>Xuất Thẻ Phối Đồ (Look Card)</span>
+                        </button>
+                        <button onclick="randomizeOutfit()" class="py-3 px-4 rounded-2xl bg-white hover:bg-amber-50 text-stone-700 border border-amber-300 font-medium text-sm flex items-center space-x-1.5 shadow-xs transition" title="Ngẫu hứng phối màu ngũ hành">
+                            <i data-lucide="shuffle" class="w-4 h-4 text-amber-700"></i>
+                            <span>Ngẫu Hứng</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: Customizer Wardrobe Control Panel (7 cols) -->
+                <div class="lg:col-span-7 lacquer-card p-6 lg:p-8 space-y-6">
+                    <div class="border-b border-amber-200/80 pb-4 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-bold font-imperial text-stone-900">Phòng Mix Đồ & Phụ Kiện</h2>
+                            <p class="text-xs text-stone-500 font-serif-vi">Tùy biến 7 nhóm chi tiết theo bảng thiết kế Việt phục</p>
+                        </div>
+                        <span id="current-garment-title" class="red-seal text-xs font-serif-vi">Áo Dài Việt Nam</span>
+                    </div>
+
+                    <!-- 1. Chọn Loại Việt Phục (6 loại) -->
+                    <div class="space-y-2.5">
+                        <label class="block text-xs font-semibold text-stone-600 uppercase tracking-wider">1. Loại Việt Phục</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" id="garment-selector-grid">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- 2. Màu Áo & Chất Liệu -->
+                    <div class="space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-semibold text-stone-600 uppercase tracking-wider">2. Màu Áo (Tranh Dân Gian Palette)</label>
+                            <span id="selected-color-name" class="text-xs text-amber-800 font-serif-vi italic">Đỏ Son May Mắn</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-3 p-3 bg-amber-50/60 rounded-2xl border border-amber-200/60" id="color-swatch-bar">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- 3. Quần / Váy -->
+                    <div class="space-y-2.5">
+                        <label class="block text-xs font-semibold text-stone-600 uppercase tracking-wider">3. Quần / Váy</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="bottom-selector-grid">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- 4. Khăn / Nón -->
+                    <div class="space-y-2.5">
+                        <label class="block text-xs font-semibold text-stone-600 uppercase tracking-wider">4. Khăn / Nón</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" id="headdress-selector-grid">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- 5. Trang Sức -->
+                    <div class="space-y-2.5">
+                        <label class="block text-xs font-semibold text-stone-600 uppercase tracking-wider">5. Trang Sức</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" id="jewelry-selector-grid">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- 6. Giày Dép -->
+                    <div class="space-y-2.5">
+                        <label class="block text-xs font-semibold text-stone-600 uppercase tracking-wider">6. Giày / Hài Dép</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="shoes-selector-grid">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- 7. Túi & Kiểu Tóc -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                        <div class="space-y-2">
+                            <label class="block text-xs font-semibold text-stone-600 uppercase tracking-wider">7a. Túi Xách</label>
+                            <select id="bag-select" onchange="selectStudioBag(this.value)" class="w-full p-2.5 bg-amber-50/40 border border-stone-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500">
+                                <option value="none">Không mang túi (cầm quạt)</option>
+                                <option value="tui_coi">Túi cói quai tròn</option>
+                                <option value="tui_may">Túi mây tre đan</option>
+                                <option value="tui_tho_cam">Túi đeo thổ cẩm</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-xs font-semibold text-stone-600 uppercase tracking-wider">7b. Kiểu Tóc</label>
+                            <select id="hair-select" onchange="selectStudioHair(this.value)" class="w-full p-2.5 bg-amber-50/40 border border-stone-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500">
+                                <option value="bui_tram">Tóc búi thấp cài trâm</option>
+                                <option value="xoa_tu_nhien">Tóc xõa dài tự nhiên</option>
+                                <option value="tet_duoi_sam">Tóc tết đuôi sam</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Cultural Insight Note -->
+                    <div class="p-4 bg-amber-100/50 rounded-2xl border-l-4 border-red-800 text-xs text-stone-700 leading-relaxed font-serif-vi">
+                        <strong class="text-red-900 block mb-1">Điểm Nhấn Văn Hóa:</strong>
+                        <span id="garment-cultural-insight">
+                            Mỗi loại trang phục Việt mang theo một câu chuyện cội nguồn: từ nét đoan trang của Áo Dài, mực thước của Ngũ Thân, e lệ của Tứ Thân, đến sự phóng khoáng bình dị của Áo Bà Ba Nam Bộ và vẻ đẹp núi rừng Tây Bắc.
+                        </span>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- TAB 3: DYNASTIC WARDROBE ENCYCLOPEDIA (Bách Khoa Y Phục) -->
+        <!-- ============================================================= -->
+        <section id="tab-catalog" class="hidden space-y-8">
+            <div class="text-center max-w-2xl mx-auto space-y-2">
+                <span class="red-seal text-xs">Di Sản Muôn Năm</span>
+                <h2 class="text-3xl font-bold font-imperial text-stone-900">Bách Khoa Toàn Thư Việt Phục</h2>
+                <p class="text-sm text-stone-600 font-serif-vi leading-relaxed">
+                    Khám phá 6 dòng y phục đặc sắc trải dài từ Bắc vào Nam, từ chốn cung đình uy nghiêm đến làng quê thanh bình và núi rừng đại ngàn.
+                </p>
+            </div>
+
+            <!-- Majestic Calligraphy Banner Plaque -->
+            <div class="max-w-4xl mx-auto rounded-2xl overflow-hidden border-2 border-amber-500/40 shadow-2xl bg-black relative group">
+                <img src="/static/assets/intro_banner.jpg" alt="Việt Phục Cổ Truyền" class="w-full object-cover max-h-72">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none"></div>
+                <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between text-amber-200 text-xs">
+                    <span class="font-serif-vi hidden sm:inline">✦ Chạm khắc sơn thếp rồng phượng & hoa sen truyền thống Đại Việt</span>
+                    <button onclick="playIntroSplash()" class="px-3 py-1 rounded-lg bg-amber-950/80 hover:bg-amber-900 border border-amber-400/50 text-amber-200 text-xs transition flex items-center space-x-1 ml-auto">
+                        <i data-lucide="maximize-2" class="w-3.5 h-3.5 text-amber-300"></i>
+                        <span>Chiêm Ngưỡng Toàn Màn Hình</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Costumes List Cards (Model bo góc mềm mại) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="encyclopedia-cards">
+                <!-- Populated dynamically via catalog-data.js -->
+            </div>
+
+            <!-- Legendary Silks Section -->
+            <div class="lacquer-card p-6 lg:p-8 space-y-6">
+                <div class="border-b border-amber-200/80 pb-3 flex items-center space-x-3">
+                    <i data-lucide="sparkles" class="w-6 h-6 text-amber-600"></i>
+                    <div>
+                        <h3 class="text-xl font-bold font-imperial text-stone-900">Tinh Hoa Tơ Lụa & Vải Thổ Cẩm Việt Nam</h3>
+                        <p class="text-xs text-stone-500 font-serif-vi">Chất liệu truyền thống tạo nên linh hồn cho từng nếp áo</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" id="fabrics-grid">
+                    <!-- Populated dynamically via catalog-data.js -->
+                </div>
+            </div>
+
+            <!-- Ngũ Hành & Tranh Dân Gian Palette Guide -->
+            <div class="lacquer-card p-6 lg:p-8 space-y-6">
+                <div class="border-b border-amber-200/80 pb-3 flex items-center space-x-3">
+                    <i data-lucide="compass" class="w-6 h-6 text-amber-600"></i>
+                    <div>
+                        <h3 class="text-xl font-bold font-imperial text-stone-900">Màu Sắc Tranh Dân Gian & Ngũ Hành Hòa Hợp</h3>
+                        <p class="text-xs text-stone-500 font-serif-vi">Bộ ba màu chủ đạo: Vàng + Đỏ Son + Xanh Ngọc trên nền kem truyền thống</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4" id="nguhanh-grid">
+                    <!-- Populated dynamically via catalog-data.js -->
+                </div>
+            </div>
+
+            <!-- Etiquette Rules -->
+            <div class="lacquer-card p-6 lg:p-8 space-y-4">
+                <h3 class="text-xl font-bold font-imperial text-stone-900 flex items-center space-x-2">
+                    <i data-lucide="scroll" class="w-5 h-5 text-red-800"></i>
+                    <span>Cẩm Nang Điển Lễ - Hướng Dẫn Văn Hóa Khi Mặc</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-serif-vi text-stone-700" id="etiquette-grid">
+                    <!-- Populated dynamically via catalog-data.js -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- TAB 4: OCCASION & VIBE MATCHER (Gợi Ý Theo Dịp & Vibe) -->
+        <!-- ============================================================= -->
+        <section id="tab-generator" class="hidden space-y-6">
+            <div class="max-w-3xl mx-auto lacquer-card p-6 lg:p-8 space-y-6">
+                <div class="border-b border-amber-200/80 pb-4 text-center space-y-1">
+                    <span class="red-seal text-xs">Công Thức Phối Đồ</span>
+                    <h2 class="text-2xl font-bold font-imperial text-stone-900">Gợi Ý Theo Dịp & Vibe Cá Nhân</h2>
+                    <p class="text-xs text-stone-600 font-serif-vi">Trang Phục Truyền Thống + Hoàn Cảnh/Dịp + Vibe Cá Nhân</p>
+                </div>
+
+                <form id="occasion-form" onsubmit="handleOccasionSubmit(event)" class="space-y-6">
+                    <!-- 7 Dịp / Lễ từ Spreadsheet -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-semibold text-stone-700 uppercase tracking-wider">1. Dịp / Lễ Xuất Hiện (7 Dịp Chuẩn)</label>
+                        <select id="gen-occasion" class="w-full p-3 bg-amber-50/40 border border-stone-300 rounded-2xl text-sm focus:ring-2 focus:ring-amber-500">
+                            <option value="tet">Tết (Du xuân, chúc Tết, sum vầy)</option>
+                            <option value="le_chua">Lễ / Chùa (Trang nghiêm, thắp hương tổ tiên)</option>
+                            <option value="cuoi_hoi">Cưới hỏi (Vu quy, đính hôn, tân nương/tân lang)</option>
+                            <option value="le_hoi">Lễ hội truyền thống (Hội Lim, Đền Hùng, Hội Chùa Hương)</option>
+                            <option value="chup_anh">Chụp ảnh (Cố đô Huế, Phố cổ Hội An, Hồ Tây)</option>
+                            <option value="truong_hoc">Đi học / Sự kiện trường (Kỷ yếu, tốt nghiệp, ngày hội văn hóa)</option>
+                            <option value="hang_ngay">Hằng ngày (Dạo phố, cà phê, đi làm phong cách cổ phong)</option>
+                        </select>
+                    </div>
+
+                    <!-- 5 Vibe cá nhân từ Spreadsheet -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-semibold text-stone-700 uppercase tracking-wider">2. Vibe Cá Nhân Bạn Hướng Đến (5 Phong Cách)</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                            <label class="flex flex-col items-center justify-center p-3 rounded-2xl border border-amber-200 bg-white hover:bg-amber-50 cursor-pointer text-center transition">
+                                <input type="radio" name="vibe" value="thanh_lich" checked class="text-red-800 mb-1">
+                                <span class="font-bold">Thanh Lịch</span>
+                                <span class="text-[10px] text-stone-500">Trang nhã</span>
+                            </label>
+                            <label class="flex flex-col items-center justify-center p-3 rounded-2xl border border-amber-200 bg-white hover:bg-amber-50 cursor-pointer text-center transition">
+                                <input type="radio" name="vibe" value="co_dien" class="text-red-800 mb-1">
+                                <span class="font-bold">Cổ Điển</span>
+                                <span class="text-[10px] text-stone-500">Hoài niệm xưa</span>
+                            </label>
+                            <label class="flex flex-col items-center justify-center p-3 rounded-2xl border border-amber-200 bg-white hover:bg-amber-50 cursor-pointer text-center transition">
+                                <input type="radio" name="vibe" value="toi_gian" class="text-red-800 mb-1">
+                                <span class="font-bold">Tối Giản</span>
+                                <span class="text-[10px] text-stone-500">Gọn gàng</span>
+                            </label>
+                            <label class="flex flex-col items-center justify-center p-3 rounded-2xl border border-amber-200 bg-white hover:bg-amber-50 cursor-pointer text-center transition">
+                                <input type="radio" name="vibe" value="ca_tinh" class="text-red-800 mb-1">
+                                <span class="font-bold">Cá Tính</span>
+                                <span class="text-[10px] text-stone-500">Độc bản</span>
+                            </label>
+                            <label class="flex flex-col items-center justify-center p-3 rounded-2xl border border-amber-200 bg-white hover:bg-amber-50 cursor-pointer text-center transition">
+                                <input type="radio" name="vibe" value="nu_tinh" class="text-red-800 mb-1">
+                                <span class="font-bold">Nữ Tính</span>
+                                <span class="text-[10px] text-stone-500">Mềm mại</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Giới tính & Ưu tiên trang phục -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label class="block text-xs font-semibold text-stone-700 uppercase tracking-wider">3. Giới Tính</label>
+                            <select id="gen-gender" class="w-full p-3 bg-amber-50/40 border border-stone-300 rounded-2xl text-sm focus:ring-2 focus:ring-amber-500">
+                                <option value="nu">Nữ Giới (Thướt tha, đoan trang)</option>
+                                <option value="nam">Nam Giới (Mực thước, đĩnh đạc)</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-xs font-semibold text-stone-700 uppercase tracking-wider">4. Y Phục Mong Muốn (Tùy Chọn)</label>
+                            <select id="gen-garment-pref" class="w-full p-3 bg-amber-50/40 border border-stone-300 rounded-2xl text-sm focus:ring-2 focus:ring-amber-500">
+                                <option value="auto">Để Nghệ Nhân Tự Phối Hòa Hợp Nhất</option>
+                                <option value="ao_dai">Áo Dài Việt Nam</option>
+                                <option value="ngu_than">Áo Ngũ Thân (Tay Chẽn / Áo Tấc)</option>
+                                <option value="tu_than">Áo Tứ Thân & Yếm Đào</option>
+                                <option value="nhat_binh">Áo Nhật Bình</option>
+                                <option value="ao_ba_ba">Áo Bà Ba & Khăn Rằn</option>
+                                <option value="trang_phuc_dan_toc">Trang Phục Dân Tộc Thổ Cẩm</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full py-3.5 px-6 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-bold text-sm tracking-wide shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
+                        <span>Tạo Phối Đồ Trọn Bộ (Áo + Quần + Giày + Túi + Khăn)</span>
+                    </button>
+                </form>
+
+                <!-- Generator Results Box -->
+                <div id="generator-result-box" class="mt-8 pt-6 border-t border-amber-200/80 hidden">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: EXPORT LOOK CARD (Thẻ Tạo Hình Cổ Phục) -->
+    <!-- ============================================================= -->
+    <div id="export-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="lacquer-card max-w-lg w-full p-6 space-y-4 relative bg-[#FFFDF9] rounded-3xl">
+            <button onclick="closeExportModal()" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="text-center space-y-1">
+                <span class="red-seal text-xs">Thẻ Tạo Hình Cổ Phục</span>
+                <h3 class="text-xl font-bold font-imperial text-stone-900" id="card-modal-title">Tạo Hình Y Phục Truyền Thống</h3>
+            </div>
+
+            <!-- The Exportable Postcard View -->
+            <div id="card-export-target" class="export-card-canvas p-5 rounded-2xl space-y-4 border border-amber-300">
+                <div class="flex items-center justify-between border-b border-amber-200 pb-2">
+                    <div class="text-xs font-serif-vi text-amber-900">
+                        <strong>CỔ PHỤC STYLIST</strong> · <span id="card-dynasty-text">Đại Việt</span>
+                    </div>
+                    <div class="red-seal text-[10px]">Tranh Dân Gian Palette</div>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <!-- Mini avatar capture preview -->
+                    <div class="w-32 h-44 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-center overflow-hidden flex-shrink-0" id="card-mini-avatar">
+                        <!-- Cloned SVG avatar snippet -->
+                    </div>
+                    <!-- Look details summary -->
+                    <div class="space-y-1 text-xs text-stone-700 font-serif-vi flex-1">
+                        <p><strong>Y phục:</strong> <span id="card-garment-name">Áo Dài</span></p>
+                        <p><strong>Màu áo:</strong> <span id="card-color-name">Đỏ Son</span></p>
+                        <p><strong>Quần/Váy:</strong> <span id="card-bottom-name">Quần Lụa Trắng</span></p>
+                        <p><strong>Giày:</strong> <span id="card-shoes-name">Guốc Mộc Quai Nhung</span></p>
+                        <p><strong>Khăn/Nón:</strong> <span id="card-headdress-name">Khăn Vành Dây</span></p>
+                        <p><strong>Trang sức:</strong> <span id="card-jewelry-name">Kiềng Bạc Chạm Sen</span></p>
+                        <div class="pt-1">
+                            <span class="text-[10px] block font-sans font-semibold text-stone-500 uppercase">Hòa Sắc Ngũ Hành:</span>
+                            <div class="flex items-center space-x-1.5 mt-0.5" id="card-color-swatches">
+                                <!-- Swatches -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-amber-50/70 p-2.5 rounded-xl text-[11px] text-stone-600 font-serif-vi italic leading-relaxed border-l-2 border-red-800" id="card-etiquette-quote">
+                    "Trang phục truyền thống đẹp nhất khi hòa hợp cùng hoàn cảnh và phong thái tự tin của người mặc."
+                </div>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="flex items-center space-x-3 pt-2">
+                <button onclick="downloadCardAsImage()" class="flex-1 py-2.5 px-4 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-medium text-xs flex items-center justify-center space-x-1.5 shadow transition">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>In & Tải Thẻ Tạo Hình</span>
+                </button>
+                <button onclick="closeExportModal()" class="py-2.5 px-4 rounded-2xl border border-stone-300 text-stone-600 hover:bg-stone-50 text-xs transition">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: SETTINGS & GEMINI API KEY -->
+    <!-- ============================================================= -->
+    <div id="settings-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="lacquer-card max-w-md w-full p-6 space-y-4 relative bg-[#FFFDF9] rounded-3xl">
+            <button onclick="closeSettingsModal()" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="space-y-1">
+                <span class="red-seal text-xs">Cài Đặt Hệ Thống</span>
+                <h3 class="text-xl font-bold font-imperial text-stone-900">Thiết Lập Stylist & Trí Tuệ Nhân Tạo</h3>
+            </div>
+
+            <div class="space-y-4 text-xs font-serif-vi text-stone-600 leading-relaxed">
+                <div class="p-3.5 bg-amber-50 rounded-2xl border border-amber-200">
+                    <p class="font-semibold text-amber-950 mb-1">💡 Chế độ sẵn sàng không cần cấu hình:</p>
+                    <p>Hệ thống hoạt động mượt mà 100% cục bộ với kho tri thức may mặc dân tộc đầy đủ, áp dụng đúng chuẩn công thức từ bảng dữ liệu ý tưởng Việt phục.</p>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block font-sans font-semibold text-stone-700 uppercase tracking-wider text-[11px]">Khóa Gemini API (Tùy chọn nếu muốn trò chuyện mở rộng):</label>
+                    <input type="password" id="custom-api-key" placeholder="AIzaSy..." class="w-full p-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500">
+                    <p class="text-[11px] text-stone-400 font-sans">Được lưu trực tiếp trong trình duyệt của bạn và không gửi đi bất kỳ đâu khác.</p>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end space-x-2 pt-2">
+                <button onclick="saveSettings()" class="py-2 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-amber-100 font-medium text-xs shadow transition">
+                    Lưu Cài Đặt
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts with cache-busting -->
+    <script src="/static/js/catalog-data.js?v=20260920_3"></script>
+    <script src="/static/js/visualizer.js?v=20260920_3"></script>
+    <script src="/static/js/app.js?v=20260920_3"></script>
+</body>
+</html>

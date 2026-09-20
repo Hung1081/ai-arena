@@ -1,0 +1,419 @@
+/* Vietnamese Traditional Fashion Aesthetic Stylesheet 
+ * Based on "Khái quát ý tưởng Việt phục":
+ * - Nền kem (Silk cream)
+ * - Màu chủ đạo: Vàng + Đỏ son + Xanh ngọc (giống màu tranh truyền thống Hàng Trống / Đông Hồ)
+ * - Bo góc mềm mại (Soft rounded curves)
+ * - Hoa văn Trống Đồng Đông Sơn & Mây cổ
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Cinzel:wght@600;700;900&family=Playfair+Display:ital,wght@0,600;0,700;1,500&family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+:root {
+    --bg-cream: #FAF6EE;
+    --paper-card: #FFFDF9;
+    --red-vermilion: #9E1A1A;
+    --red-deep: #7D1214;
+    --gold-imperial: #D4AF37;
+    --gold-mustard: #C59B27;
+    --jade-green: #1A5336;
+    --jade-light: #2D6A4F;
+    --lacquer-black: #171923;
+    --border-bronze: #E5D5B8;
+}
+
+body {
+    font-family: 'Be Vietnam Pro', sans-serif;
+    background-color: var(--bg-cream);
+    color: #2D3748;
+    background-image: 
+        radial-gradient(circle at 20% 15%, rgba(212, 175, 55, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 80% 85%, rgba(158, 26, 26, 0.06) 0%, transparent 45%),
+        radial-gradient(#D4AF37 0.75px, transparent 0.75px);
+    background-size: 100% 100%, 100% 100%, 28px 28px;
+    min-height: 100vh;
+}
+
+h1, h2, h3, .font-imperial {
+    font-family: 'Playfair Display', serif;
+}
+
+.font-serif-vi {
+    font-family: 'Noto Serif', serif;
+}
+
+/* Soft Rounded Traditional Card (Bo góc mềm mại) */
+.lacquer-card {
+    background: var(--paper-card);
+    border: 1px solid var(--border-bronze);
+    box-shadow: 0 12px 32px -10px rgba(158, 26, 26, 0.07), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+    position: relative;
+    border-radius: 20px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lacquer-card:hover {
+    box-shadow: 0 16px 36px -8px rgba(158, 26, 26, 0.1), 0 6px 16px -2px rgba(0, 0, 0, 0.04);
+}
+
+.lacquer-header {
+    background: linear-gradient(135deg, #7D1214 0%, #9E1A1A 50%, #5E0D0F 100%);
+    color: #FAF6EE;
+    border-bottom: 2px solid var(--gold-imperial);
+}
+
+/* Con Dấu Son Đỏ (Red Traditional Seal) */
+.red-seal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #9E1A1A;
+    color: #9E1A1A;
+    font-family: 'Noto Serif', serif;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    background: rgba(158, 26, 26, 0.06);
+}
+
+/* Rounded Corner Ornaments */
+.corner-ornament {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-color: var(--gold-mustard);
+    pointer-events: none;
+    border-radius: 3px;
+}
+.corner-tl { top: 8px; left: 8px; border-top: 2px solid; border-left: 2px solid; }
+.corner-tr { top: 8px; right: 8px; border-top: 2px solid; border-right: 2px solid; }
+.corner-bl { bottom: 8px; left: 8px; border-bottom: 2px solid; border-left: 2px solid; }
+.corner-br { bottom: 8px; right: 8px; border-bottom: 2px solid; border-right: 2px solid; }
+
+/* Dynamic Vector Visualizer Stage */
+.visualizer-wrapper {
+    background: radial-gradient(circle at 50% 50%, #FFF9EC 0%, #F5ECDD 100%);
+    border: 2px solid var(--border-bronze);
+    border-radius: 24px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 50px rgba(212, 175, 55, 0.16), 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+/* Chat bubble styling */
+.stylist-bubble {
+    background: #FFFFFF;
+    border: 1px solid #EADCC6;
+    border-left: 4px solid var(--red-vermilion);
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+.user-bubble {
+    background: linear-gradient(135deg, #9E1A1A 0%, #7D1214 100%);
+    color: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 3px 10px rgba(158, 26, 26, 0.25);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #F4ECE0;
+}
+::-webkit-scrollbar-thumb {
+    background: #D4AF37;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #C59B27;
+}
+
+/* Swatch circle with border highlight */
+.color-swatch {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.color-swatch:hover {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 3px #D4AF37;
+}
+.color-swatch.active {
+    box-shadow: 0 0 0 3px #9E1A1A, 0 0 0 5px #D4AF37;
+    transform: scale(1.15);
+}
+
+/* Tabs Animation */
+.tab-btn {
+    position: relative;
+    transition: all 0.25s ease;
+}
+.tab-btn.active {
+    color: #FAF6EE;
+    background: rgba(255, 255, 255, 0.16);
+    font-weight: 600;
+}
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 15%;
+    width: 70%;
+    height: 3px;
+    background: linear-gradient(90deg, #D4AF37, #F6E05E, #D4AF37);
+    border-radius: 2px;
+}
+
+/* Soft Card for Export Modal */
+.export-card-canvas {
+    background: linear-gradient(145deg, #FFFDF9 0%, #F7F1E4 100%);
+    border: 3px double #D4AF37;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.14);
+    border-radius: 20px;
+}
+
+/* ==========================================================================
+   Royal Intro Transition / Splash Screen ("VIỆT PHỤC CỔ TRUYỀN")
+   ========================================================================== */
+
+#intro-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: radial-gradient(circle at 50% 45%, #2a0e10 0%, #150607 65%, #0a0304 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.75s;
+    user-select: none;
+    backdrop-filter: blur(8px);
+}
+
+#intro-splash.intro-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scale(1.05);
+}
+
+/* Background animated traditional motifs & subtle floating aura */
+.intro-bg-glow {
+    position: absolute;
+    width: min(85vw, 680px);
+    height: min(85vw, 680px);
+    background: radial-gradient(circle, rgba(212, 175, 55, 0.22) 0%, rgba(158, 26, 26, 0.14) 45%, transparent 70%);
+    border-radius: 50%;
+    filter: blur(48px);
+    pointer-events: none;
+    animation: introPulseGlow 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes introPulseGlow {
+    0% { transform: scale(0.88); opacity: 0.65; }
+    100% { transform: scale(1.15); opacity: 1; }
+}
+
+/* Plaque Container */
+.intro-plaque-wrapper {
+    position: relative;
+    max-width: 92vw;
+    width: 720px;
+    padding: 8px;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.45) 0%, rgba(125, 18, 20, 0.6) 50%, rgba(212, 175, 55, 0.35) 100%);
+    border-radius: 20px;
+    box-shadow: 
+        0 0 0 1px rgba(212, 175, 55, 0.6),
+        0 30px 70px -10px rgba(0, 0, 0, 0.9),
+        0 0 50px rgba(212, 175, 55, 0.25);
+    animation: introPlaqueEntrance 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    cursor: pointer;
+}
+
+@keyframes introPlaqueEntrance {
+    0% {
+        opacity: 0;
+        transform: translateY(28px) scale(0.92);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.intro-plaque-inner {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid rgba(212, 175, 55, 0.7);
+    background: #000000;
+}
+
+.intro-plaque-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
+    filter: contrast(1.04) brightness(1.02);
+    transition: transform 0.5s ease;
+}
+
+.intro-plaque-wrapper:hover .intro-plaque-img {
+    transform: scale(1.02);
+}
+
+/* Gold Shimmer Light Sweep across the relief plaque */
+.intro-shimmer {
+    position: absolute;
+    top: 0;
+    left: -130%;
+    width: 85%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 240, 180, 0) 25%,
+        rgba(255, 240, 180, 0.35) 50%,
+        rgba(255, 240, 180, 0) 75%,
+        transparent 100%
+    );
+    transform: skewX(-25deg);
+    animation: introGoldShimmer 2.5s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes introGoldShimmer {
+    0% { left: -130%; }
+    100% { left: 170%; }
+}
+
+/* Corner brass accents */
+.intro-corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-color: #F6E05E;
+    pointer-events: none;
+    z-index: 10;
+}
+.intro-corner-tl { top: -3px; left: -3px; border-top: 3px solid; border-left: 3px solid; border-top-left-radius: 6px; }
+.intro-corner-tr { top: -3px; right: -3px; border-top: 3px solid; border-right: 3px solid; border-top-right-radius: 6px; }
+.intro-corner-bl { bottom: -3px; left: -3px; border-bottom: 3px solid; border-left: 3px solid; border-bottom-left-radius: 6px; }
+.intro-corner-br { bottom: -3px; right: -3px; border-bottom: 3px solid; border-right: 3px solid; border-bottom-right-radius: 6px; }
+
+/* Subtitle & Entry CTA */
+.intro-caption {
+    animation: introFadeInCaption 0.8s ease 0.35s both;
+}
+
+@keyframes introFadeInCaption {
+    0% { opacity: 0; transform: translateY(14px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Progress bar */
+.intro-progress-track {
+    width: 200px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 12px auto 8px auto;
+}
+
+.intro-progress-bar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #D4AF37, #FFF2A8, #D4AF37);
+    animation: introProgressFill 2.4s linear forwards;
+}
+
+@keyframes introProgressFill {
+    0% { width: 0%; }
+    100% { width: 100%; }
+}
+
+/* ==========================================================================
+   Tab Switch Royal Transition (0.7s)
+   ========================================================================== */
+
+#tab-transition-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99998;
+    background: radial-gradient(circle at 50% 50%, rgba(42, 14, 16, 0.94) 0%, rgba(21, 6, 7, 0.98) 70%, rgba(10, 3, 4, 0.99) 100%);
+    opacity: 0;
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    backdrop-filter: blur(6px);
+}
+
+#tab-transition-overlay.tab-trans-active {
+    display: flex !important;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#tab-transition-overlay.tab-trans-fadeout {
+    opacity: 0 !important;
+    transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.tab-trans-card {
+    position: relative;
+    padding: 24px 36px;
+    background: linear-gradient(135deg, rgba(35, 12, 14, 0.92) 0%, rgba(20, 6, 8, 0.96) 100%);
+    border: 1.5px solid rgba(212, 175, 55, 0.6);
+    border-radius: 20px;
+    box-shadow: 
+        0 0 0 1px rgba(212, 175, 55, 0.3),
+        0 20px 50px -10px rgba(0, 0, 0, 0.8),
+        0 0 40px rgba(212, 175, 55, 0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-width: 280px;
+    max-width: 90vw;
+    animation: tabCardPop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tabCardPop {
+    0% { transform: scale(0.92); opacity: 0.6; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.tab-trans-shimmer {
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 70%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 235, 160, 0.28), transparent);
+    transform: skewX(-20deg);
+    animation: tabShimmerSweep 0.65s ease-in-out forwards;
+    pointer-events: none;
+}
+
+@keyframes tabShimmerSweep {
+    0% { left: -120%; }
+    100% { left: 160%; }
+}
+
+.tab-trans-line {
+    width: 140px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #D4AF37, #FFF2A8, #D4AF37, transparent);
+    margin-top: 8px;
+    animation: tabLineExpand 0.5s ease-out forwards;
+}
+
+@keyframes tabLineExpand {
+    0% { width: 30px; opacity: 0.3; }
+    100% { width: 150px; opacity: 1; }
+}
+
+
