@@ -202,7 +202,7 @@ let currentActiveTab = "chat";
 let isTabTransitioning = false;
 
 /**
- * Tab Switching Logic with Royal Transition (Exactly 0.7s)
+ * Tab Switching Logic with Royal Transition (Exactly 1.2s)
  */
 function switchTab(tabName) {
     if (tabName === currentActiveTab && !isTabTransitioning) return;
@@ -232,29 +232,29 @@ function switchTab(tabName) {
     // Trigger overlay entrance
     overlay.className = "fixed inset-0 z-[99998] flex flex-col items-center justify-center pointer-events-none select-none tab-trans-active";
 
-    // Restart Shimmer
+    // Restart Shimmer (1.1s duration for 1.2s transition)
     const shimmer = overlay.querySelector(".tab-trans-shimmer");
     if (shimmer) {
         shimmer.style.animation = "none";
         void shimmer.offsetWidth;
-        shimmer.style.animation = "tabShimmerSweep 0.65s ease-in-out forwards";
+        shimmer.style.animation = "tabShimmerSweep 1.1s ease-in-out forwards";
     }
 
-    // 2. Under the curtain at 220ms, execute the DOM tab swap
+    // 2. Under the curtain at 350ms, execute the DOM tab swap
     setTimeout(() => {
         executeTabSwitch(tabName);
-    }, 220);
+    }, 350);
 
-    // 3. At 460ms, begin smooth fadeout
+    // 3. At 850ms, begin smooth fadeout / dissolve
     setTimeout(() => {
         overlay.classList.add("tab-trans-fadeout");
-    }, 460);
+    }, 850);
 
-    // 4. Exactly at 700ms (0.7s), finish transition completely
+    // 4. Exactly at 1200ms (1.2s), finish transition completely
     setTimeout(() => {
         overlay.className = "fixed inset-0 z-[99998] hidden flex-col items-center justify-center pointer-events-none select-none";
         isTabTransitioning = false;
-    }, 700);
+    }, 1200);
 }
 
 function executeTabSwitch(tabName) {

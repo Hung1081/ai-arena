@@ -338,7 +338,7 @@ h1, h2, h3, .font-imperial {
 }
 
 /* ==========================================================================
-   Tab Switch Royal Transition (0.7s)
+   Tab Switch Royal Transition (1.2s)
    ========================================================================== */
 
 #tab-transition-overlay {
@@ -347,8 +347,8 @@ h1, h2, h3, .font-imperial {
     z-index: 99998;
     background: radial-gradient(circle at 50% 50%, rgba(42, 14, 16, 0.94) 0%, rgba(21, 6, 7, 0.98) 70%, rgba(10, 3, 4, 0.99) 100%);
     opacity: 0;
-    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    backdrop-filter: blur(6px);
+    transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    backdrop-filter: blur(8px);
 }
 
 #tab-transition-overlay.tab-trans-active {
@@ -359,30 +359,30 @@ h1, h2, h3, .font-imperial {
 
 #tab-transition-overlay.tab-trans-fadeout {
     opacity: 0 !important;
-    transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .tab-trans-card {
     position: relative;
-    padding: 24px 36px;
-    background: linear-gradient(135deg, rgba(35, 12, 14, 0.92) 0%, rgba(20, 6, 8, 0.96) 100%);
-    border: 1.5px solid rgba(212, 175, 55, 0.6);
-    border-radius: 20px;
+    padding: 28px 42px;
+    background: linear-gradient(135deg, rgba(35, 12, 14, 0.93) 0%, rgba(20, 6, 8, 0.97) 100%);
+    border: 1.5px solid rgba(212, 175, 55, 0.65);
+    border-radius: 24px;
     box-shadow: 
-        0 0 0 1px rgba(212, 175, 55, 0.3),
-        0 20px 50px -10px rgba(0, 0, 0, 0.8),
-        0 0 40px rgba(212, 175, 55, 0.2);
+        0 0 0 1px rgba(212, 175, 55, 0.35),
+        0 24px 60px -10px rgba(0, 0, 0, 0.85),
+        0 0 45px rgba(212, 175, 55, 0.25);
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    min-width: 280px;
+    min-width: 300px;
     max-width: 90vw;
-    animation: tabCardPop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: tabCardPop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes tabCardPop {
-    0% { transform: scale(0.92); opacity: 0.6; }
+    0% { transform: scale(0.92); opacity: 0.5; }
     100% { transform: scale(1); opacity: 1; }
 }
 
@@ -392,9 +392,9 @@ h1, h2, h3, .font-imperial {
     left: -120%;
     width: 70%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 235, 160, 0.28), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 235, 160, 0.3), transparent);
     transform: skewX(-20deg);
-    animation: tabShimmerSweep 0.65s ease-in-out forwards;
+    animation: tabShimmerSweep 1.1s ease-in-out forwards;
     pointer-events: none;
 }
 
@@ -407,13 +407,13 @@ h1, h2, h3, .font-imperial {
     width: 140px;
     height: 2px;
     background: linear-gradient(90deg, transparent, #D4AF37, #FFF2A8, #D4AF37, transparent);
-    margin-top: 8px;
-    animation: tabLineExpand 0.5s ease-out forwards;
+    margin-top: 10px;
+    animation: tabLineExpand 0.8s ease-out forwards;
 }
 
 @keyframes tabLineExpand {
     0% { width: 30px; opacity: 0.3; }
-    100% { width: 150px; opacity: 1; }
+    100% { width: 170px; opacity: 1; }
 }
 
 
