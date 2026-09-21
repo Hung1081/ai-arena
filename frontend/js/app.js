@@ -219,12 +219,10 @@ function switchTab(tabName) {
     isTabTransitioning = true;
 
     // 1. Populate overlay with corresponding tab words & seal
-    const charEl = document.getElementById("tab-trans-char");
     const titleEl = document.getElementById("tab-trans-title");
     const sealEl = document.getElementById("tab-trans-seal");
     const subEl = document.getElementById("tab-trans-subtitle");
 
-    if (charEl) charEl.textContent = transData.character;
     if (titleEl) titleEl.textContent = transData.title;
     if (sealEl) sealEl.textContent = transData.seal;
     if (subEl) subEl.textContent = transData.subtitle;
