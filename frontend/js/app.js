@@ -6,6 +6,7 @@
 
 let visualizer = null;
 let currentLookRecommendation = null;
+let currentUploadedImage = null; // { base64: string, mimeType: string, name: string }
 
 // Complete 7-Component Active State for Virtual Studio
 const studioState = {
@@ -512,41 +513,106 @@ function randomizeOutfit() {
 }
 
 /**
+ * Image Upload & Virtual Try-On Handlers
+ */
+function triggerImageUpload() {
+    const input = document.getElementById("chat-image-input");
+    if (input) input.click();
+}
+
+function handleImageSelected(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+        alert("Vui lòng chọn một tệp hình ảnh hợp lệ (PNG, JPG, WEBP).");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        const base64Str = evt.target.result;
+        currentUploadedImage = {
+            base64: base64Str,
+            mimeType: file.type || "image/jpeg",
+            name: file.name
+        };
+
+        const previewContainer = document.getElementById("chat-image-preview-container");
+        const previewImg = document.getElementById("chat-image-preview");
+        const nameEl = document.getElementById("chat-image-name");
+
+        if (previewContainer && previewImg && nameEl) {
+            previewImg.src = base64Str;
+            nameEl.textContent = file.name;
+            previewContainer.classList.remove("hidden");
+        }
+        if (window.lucide) window.lucide.createIcons();
+    };
+    reader.readAsDataURL(file);
+}
+
+function removeChatImage() {
+    currentUploadedImage = null;
+    const input = document.getElementById("chat-image-input");
+    if (input) input.value = "";
+    const previewContainer = document.getElementById("chat-image-preview-container");
+    if (previewContainer) previewContainer.classList.add("hidden");
+}
+
+/**
  * AI Stylist Chat Handling
  */
 async function handleChatSubmit(e) {
     if (e) e.preventDefault();
     const input = document.getElementById("chat-input");
     const query = input.value.trim();
-    if (!query) return;
+    if (!query && !currentUploadedImage) return;
 
+    const currentQuery = query || "Hãy nhận xét gương mặt/vóc dáng của tôi và tư vấn bộ cổ phục truyền thống tôn dáng nhất!";
     input.value = "";
-    appendUserMessage(query);
+
+    // Retain uploaded image reference for sending, then clear input UI
+    const sentImage = currentUploadedImage ? { ...currentUploadedImage } : null;
+    if (sentImage) {
+        removeChatImage();
+    }
+
+    appendUserMessage(currentQuery, sentImage);
 
     const typingBubble = appendTypingIndicator();
 
     try {
         const apiKey = localStorage.getItem("gemini_api_key") || "";
+        const payload = {
+            query: currentQuery,
+            gemini_api_key: apiKey
+        };
+        if (sentImage) {
+            payload.image_base64 = sentImage.base64;
+            payload.image_mime_type = sentImage.mimeType;
+        }
+
         const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: query, gemini_api_key: apiKey })
+            body: JSON.stringify(payload)
         });
 
         if (!res.ok) throw new Error("Server error");
         const data = await res.json();
         typingBubble.remove();
 
-        appendStylistResponse(data.stylist_response);
+        appendStylistResponse(data.stylist_response, sentImage, data.look_card);
         if (data.look_card) {
-            updateRecommendationCard(data.look_card);
+            updateRecommendationCard(data.look_card, sentImage);
         }
     } catch (err) {
         typingBubble.remove();
-        const fallback = getLocalConsultationFallback(query);
-        appendStylistResponse(fallback.text);
+        const fallback = getLocalConsultationFallback(currentQuery);
+        appendStylistResponse(fallback.text, sentImage, fallback.look_card);
         if (fallback.look_card) {
-            updateRecommendationCard(fallback.look_card);
+            updateRecommendationCard(fallback.look_card, sentImage);
         }
     }
 }
@@ -559,12 +625,23 @@ function sendQuickPrompt(promptText) {
     }
 }
 
-function appendUserMessage(text) {
+function appendUserMessage(text, imageObj = null) {
     const chatContainer = document.getElementById("chat-messages");
     const msg = document.createElement("div");
     msg.className = "flex items-start justify-end space-x-3";
+    
+    let imageHtml = "";
+    if (imageObj && imageObj.base64) {
+        imageHtml = `
+            <div class="mb-2 max-w-xs rounded-xl overflow-hidden border border-amber-300 shadow-sm">
+                <img src="${imageObj.base64}" alt="Ảnh chân dung của bạn" class="w-full max-h-48 object-cover">
+            </div>
+        `;
+    }
+
     msg.innerHTML = `
         <div class="user-bubble p-4 max-w-xl text-sm leading-relaxed">
+            ${imageHtml}
             <p>${escapeHTML(text)}</p>
         </div>
         <div class="w-8 h-8 rounded-2xl bg-stone-700 text-amber-100 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow">
@@ -575,11 +652,23 @@ function appendUserMessage(text) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-function appendStylistResponse(markdownText) {
+function appendStylistResponse(markdownText, userImageObj = null, lookCard = null) {
     const chatContainer = document.getElementById("chat-messages");
     const msg = document.createElement("div");
     msg.className = "flex items-start space-x-3";
     const parsedHtml = window.marked ? window.marked.parse(markdownText) : markdownText;
+
+    let tryOnCtaHtml = "";
+    if (userImageObj && userImageObj.base64 && lookCard) {
+        tryOnCtaHtml = `
+            <div class="mt-3 pt-3 border-t border-amber-200/80 flex flex-wrap items-center gap-2">
+                <button onclick="launchVirtualTryOnModal('${lookCard.garment_id || 'ao_dai'}', '${escapeHTML(userImageObj.base64)}')" class="px-4 py-2 rounded-xl bg-gradient-to-r from-red-800 to-amber-700 hover:from-red-900 hover:to-amber-800 text-amber-100 text-xs font-medium flex items-center space-x-1.5 shadow transition">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
+                    <span>Xem Ghép Khuôn Mặt Vào ${lookCard.garment_name || 'Cổ Phục'}</span>
+                </button>
+            </div>
+        `;
+    }
 
     msg.innerHTML = `
         <div class="w-8 h-8 rounded-2xl bg-red-800 text-amber-200 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow">
@@ -587,6 +676,7 @@ function appendStylistResponse(markdownText) {
         </div>
         <div class="stylist-bubble p-4 max-w-2xl text-sm leading-relaxed text-stone-800 space-y-2 prose prose-stone max-w-none">
             ${parsedHtml}
+            ${tryOnCtaHtml}
         </div>
     `;
     chatContainer.appendChild(msg);
@@ -642,8 +732,14 @@ function clearChat() {
 /**
  * Update Right Preview Card in Chat
  */
-function updateRecommendationCard(look) {
+let lastAttachedUserImage = null;
+
+function updateRecommendationCard(look, userImageObj = null) {
     currentLookRecommendation = look;
+    if (userImageObj) {
+        lastAttachedUserImage = userImageObj;
+    }
+
     const container = document.getElementById("look-preview-container");
     const actionBox = document.getElementById("look-preview-action");
     const dynastyBadge = document.getElementById("look-dynasty-badge");
@@ -1009,6 +1105,117 @@ function saveSettings() {
     else localStorage.removeItem("gemini_api_key");
     closeSettingsModal();
     alert("Cài đặt đã được lưu thành công!");
+}
+
+function toggleApiKeyVisibility() {
+    const input = document.getElementById("custom-api-key");
+    const icon = document.getElementById("eye-icon");
+    if (!input) return;
+    if (input.type === "password") {
+        input.type = "text";
+        if (icon) icon.setAttribute("data-lucide", "eye-off");
+    } else {
+        input.type = "password";
+        if (icon) icon.setAttribute("data-lucide", "eye");
+    }
+    if (window.lucide) window.lucide.createIcons();
+}
+
+/**
+ * AI Virtual Try-On Modal Controls
+ */
+let currentTryOnGarmentId = "ao_dai";
+
+function openTryOnWithCurrentLook() {
+    const garmentId = (currentLookRecommendation && currentLookRecommendation.garment_id) || studioState.garmentId || "ao_dai";
+    
+    // Check if user uploaded a photo
+    let userImgBase64 = null;
+    if (currentUploadedImage && currentUploadedImage.base64) {
+        userImgBase64 = currentUploadedImage.base64;
+    } else if (lastAttachedUserImage && lastAttachedUserImage.base64) {
+        userImgBase64 = lastAttachedUserImage.base64;
+    }
+
+    if (!userImgBase64) {
+        // Prompt user to select image
+        alert("Vui lòng nhấn vào biểu tượng 🖼️ 'Gửi ảnh' ở khung chat để chọn ảnh chân dung của bạn trước nhé!");
+        triggerImageUpload();
+        return;
+    }
+
+    launchVirtualTryOnModal(garmentId, userImgBase64);
+}
+
+async function launchVirtualTryOnModal(garmentId, userImgBase64) {
+    currentTryOnGarmentId = garmentId;
+    const modal = document.getElementById("tryon-modal");
+    const userImgEl = document.getElementById("tryon-user-img");
+    const outfitImgEl = document.getElementById("tryon-outfit-img");
+    const outfitNameEl = document.getElementById("tryon-outfit-name");
+    const outfitDescEl = document.getElementById("tryon-outfit-desc");
+    const analysisEl = document.getElementById("tryon-ai-analysis");
+
+    if (!modal) return;
+
+    // Garment display mapping
+    const catalogGarment = (window.STYLIST_CATALOG && window.STYLIST_CATALOG.garments.find(g => g.id === garmentId)) || {};
+    const photoModel = (visualizer && visualizer.photoModels && visualizer.photoModels[garmentId]) || {};
+
+    const outfitPhoto = photoModel.url || catalogGarment.photo || "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=800&q=80";
+    const garmentName = catalogGarment.name || "Cổ Phục Việt Nam";
+
+    userImgEl.src = userImgBase64;
+    outfitImgEl.src = outfitPhoto;
+    outfitNameEl.textContent = garmentName;
+    outfitDescEl.textContent = catalogGarment.dynasty || "Đại Việt Tinh Hoa";
+
+    analysisEl.innerHTML = `
+        <div class="flex items-center space-x-2 text-stone-500 italic py-2">
+            <div class="w-4 h-4 border-2 border-red-800 border-t-transparent rounded-full animate-spin"></div>
+            <span>Gemini Vision AI đang đọc ảnh và thẩm định nét mặt khi kết hợp cùng ${garmentName}...</span>
+        </div>
+    `;
+
+    modal.classList.remove("hidden");
+    if (window.lucide) window.lucide.createIcons();
+
+    // Call Backend Virtual Try-On API
+    try {
+        const apiKey = localStorage.getItem("gemini_api_key") || "";
+        const res = await fetch("/api/try-on", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                image_base64: userImgBase64,
+                garment_id: garmentId,
+                gemini_api_key: apiKey
+            })
+        });
+
+        if (!res.ok) throw new Error("Try-on analysis error");
+        const data = await res.json();
+
+        const formattedText = window.marked ? window.marked.parse(data.analysis) : data.analysis;
+        analysisEl.innerHTML = formattedText;
+    } catch (err) {
+        analysisEl.innerHTML = `
+            <p>Khuôn mặt và diện mạo của bạn rất đoan trang và mang vẻ đẹp thuần khiết Á Đông, cực kỳ hài hòa khi hòa quyện vào tà <strong>${garmentName}</strong>. Tổng thể toát lên trọn vẹn nét tôn quý và khí chất Đại Việt!</p>
+        `;
+    }
+}
+
+function closeTryOnModal() {
+    const modal = document.getElementById("tryon-modal");
+    if (modal) modal.classList.add("hidden");
+}
+
+function applyTryOnToStudio() {
+    closeTryOnModal();
+    if (currentTryOnGarmentId) {
+        selectStudioGarment(currentTryOnGarmentId);
+    }
+    switchTab("studio");
 }
 
 function escapeHTML(str) {

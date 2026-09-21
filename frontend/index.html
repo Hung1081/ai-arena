@@ -316,10 +316,37 @@
                         </div>
                     </div>
 
-                    <div class="p-4 bg-white border-t border-amber-200/70">
+                    <div class="p-3 lg:p-4 bg-white border-t border-amber-200/70">
+                        <!-- Image Upload Preview Box (Hidden until user selects an image) -->
+                        <div id="chat-image-preview-container" class="hidden mb-3 p-2.5 bg-amber-50/70 border border-amber-300 rounded-2xl flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-12 h-12 rounded-xl overflow-hidden border border-amber-400 shadow-xs flex-shrink-0 bg-stone-200">
+                                    <img id="chat-image-preview" src="" alt="Ảnh chân dung tải lên" class="w-full h-full object-cover">
+                                </div>
+                                <div class="text-xs">
+                                    <p class="font-semibold text-stone-800 flex items-center space-x-1">
+                                        <i data-lucide="image" class="w-3.5 h-3.5 text-amber-700"></i>
+                                        <span id="chat-image-name" class="truncate max-w-[180px] sm:max-w-xs">anh-cua-ban.jpg</span>
+                                    </p>
+                                    <p class="text-[11px] text-amber-900 font-serif-vi">Gemini sẽ phân tích diện mạo & gợi ý ghép cổ phục chuẩn dáng</p>
+                                </div>
+                            </div>
+                            <button type="button" onclick="removeChatImage()" class="p-1.5 text-stone-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition" title="Xóa ảnh này">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+
+                        <!-- Hidden File Input for Portrait Photo -->
+                        <input type="file" id="chat-image-input" accept="image/*" class="hidden" onchange="handleImageSelected(event)">
+
                         <form id="chat-form" onsubmit="handleChatSubmit(event)" class="flex items-end space-x-2">
+                            <!-- Upload Photo Button -->
+                            <button type="button" onclick="triggerImageUpload()" class="p-3 rounded-2xl bg-amber-100/80 hover:bg-amber-200 text-amber-900 border border-amber-300 hover:border-amber-400 transition flex items-center justify-center flex-shrink-0 shadow-2xs" title="Gửi ảnh chân dung để ghép vào Việt phục">
+                                <i data-lucide="image-plus" class="w-5 h-5 text-amber-800"></i>
+                            </button>
+
                             <div class="flex-1 bg-stone-50 border border-stone-200 rounded-2xl p-2.5 focus-within:ring-2 focus-within:ring-amber-500/50 focus-within:border-amber-500 transition">
-                                <textarea id="chat-input" rows="2" placeholder="Nhập câu hỏi: Dịp mặc (Tết, chùa, cưới, trường...), phong cách (thanh lịch, tối giản, cá tính...), hoặc trang phục mong muốn..." class="w-full bg-transparent resize-none border-0 text-sm focus:outline-none text-stone-800 placeholder-stone-400"></textarea>
+                                <textarea id="chat-input" rows="2" placeholder="Gửi ảnh của bạn & nhập câu hỏi: 'Ghép tôi vào bộ Áo Dài cưới đỏ son' hoặc 'Tư vấn cổ phục hợp khuôn mặt tôi'..." class="w-full bg-transparent resize-none border-0 text-sm focus:outline-none text-stone-800 placeholder-stone-400"></textarea>
                             </div>
                             <button type="submit" id="chat-submit-btn" class="px-5 py-3 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-medium text-sm flex items-center space-x-2 shadow-md hover:shadow-lg transition">
                                 <span>Gửi</span>
@@ -349,10 +376,16 @@
                             </div>
                         </div>
 
-                        <div id="look-preview-action" class="pt-4 border-t border-amber-200/70 hidden">
-                            <button onclick="applyLookToStudio()" class="w-full py-3 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-medium text-sm flex items-center justify-center space-x-2 shadow transition">
+                        <div id="look-preview-action" class="pt-4 border-t border-amber-200/70 hidden space-y-2">
+                            <!-- Virtual Try-On with User's Photo -->
+                            <button onclick="openTryOnWithCurrentLook()" id="btn-tryon-look" class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-red-800 to-amber-700 hover:from-red-900 hover:to-amber-800 text-amber-100 font-medium text-sm flex items-center justify-center space-x-2 shadow-md transition">
+                                <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
+                                <span>AI Ghép Mặt Vào Bộ Cổ Phục Này</span>
+                            </button>
+
+                            <button onclick="applyLookToStudio()" class="w-full py-2.5 px-4 rounded-2xl bg-amber-600/90 hover:bg-amber-700 text-white font-medium text-xs flex items-center justify-center space-x-2 shadow transition">
                                 <i data-lucide="palette" class="w-4 h-4"></i>
-                                <span>Thử Ngay Trên Người Mẫu Ảo</span>
+                                <span>Thử Trên Người Mẫu Ảo (Studio)</span>
                             </button>
                         </div>
                     </div>
@@ -712,6 +745,64 @@
     </div>
 
     <!-- ============================================================= -->
+    <!-- MODAL: AI VIRTUAL TRY-ON (KẾT QUẢ GHÉP ẢNH CỔ PHỤC) -->
+    <!-- ============================================================= -->
+    <div id="tryon-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="lacquer-card max-w-2xl w-full p-6 space-y-4 relative bg-[#FFFDF9] rounded-3xl max-h-[90vh] overflow-y-auto">
+            <button onclick="closeTryOnModal()" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="space-y-1">
+                <span class="red-seal text-xs">Gemini AI Try-On</span>
+                <h3 class="text-xl font-bold font-imperial text-stone-900" id="tryon-modal-title">Kết Quả Thử & Ghép Cổ Phục</h3>
+            </div>
+
+            <!-- Comparison / Image Container -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                <div class="space-y-1 text-center">
+                    <p class="text-xs font-semibold text-stone-500 uppercase tracking-wider">Ảnh Gốc Của Bạn</p>
+                    <div class="w-full h-72 rounded-2xl overflow-hidden border border-amber-300 shadow-inner bg-stone-100 flex items-center justify-center">
+                        <img id="tryon-user-img" src="" alt="Ảnh gốc của bạn" class="w-full h-full object-cover">
+                    </div>
+                </div>
+                <div class="space-y-1 text-center">
+                    <p class="text-xs font-semibold text-red-900 uppercase tracking-wider flex items-center justify-center space-x-1">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-600"></i>
+                        <span>Cổ Phục Tương Thích Hoàn Hảo</span>
+                    </p>
+                    <div class="w-full h-72 rounded-2xl overflow-hidden border border-amber-400 shadow-lg bg-stone-900 flex items-center justify-center relative">
+                        <img id="tryon-outfit-img" src="" alt="Cổ phục ghép" class="w-full h-full object-cover">
+                        <div id="tryon-badge-overlay" class="absolute bottom-2 left-2 right-2 p-2 bg-black/60 backdrop-blur-sm rounded-xl text-[11px] text-amber-200 text-left">
+                            <strong id="tryon-outfit-name" class="block text-white">Áo Dài Việt Nam</strong>
+                            <span id="tryon-outfit-desc" class="text-stone-300">Được chọn theo yêu cầu của bạn</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Stylist Assessment -->
+            <div class="p-4 bg-amber-50/80 rounded-2xl border border-amber-200/90 text-xs font-serif-vi text-stone-700 space-y-2">
+                <div class="flex items-center space-x-2 text-red-900 font-bold">
+                    <i data-lucide="message-square" class="w-4 h-4"></i>
+                    <span>Đánh Giá Cốt Cách & Điển Lễ Từ Gemini AI:</span>
+                </div>
+                <p id="tryon-ai-analysis" class="leading-relaxed"></p>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+                <button onclick="applyTryOnToStudio()" class="py-2.5 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-amber-100 font-medium text-xs flex items-center space-x-2 shadow transition">
+                    <i data-lucide="palette" class="w-4 h-4"></i>
+                    <span>Mở Trong Phòng Mix Đồ</span>
+                </button>
+                <button onclick="closeTryOnModal()" class="py-2.5 px-4 rounded-xl border border-stone-300 text-stone-600 hover:bg-stone-50 text-xs transition">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
     <!-- MODAL: SETTINGS & GEMINI API KEY -->
     <!-- ============================================================= -->
     <div id="settings-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -726,15 +817,25 @@
             </div>
 
             <div class="space-y-4 text-xs font-serif-vi text-stone-600 leading-relaxed">
-                <div class="p-3.5 bg-amber-50 rounded-2xl border border-amber-200">
-                    <p class="font-semibold text-amber-950 mb-1">💡 Chế độ sẵn sàng không cần cấu hình:</p>
-                    <p>Hệ thống hoạt động mượt mà 100% cục bộ với kho tri thức may mặc dân tộc đầy đủ, áp dụng đúng chuẩn công thức từ bảng dữ liệu ý tưởng Việt phục.</p>
+                <div class="p-3.5 bg-gradient-to-r from-amber-50 to-amber-100/70 rounded-2xl border border-amber-300">
+                    <p class="font-semibold text-amber-950 mb-1 flex items-center space-x-1.5">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-amber-600 inline"></i>
+                        <span>Kết Nối Trực Tiếp Gemini Vision & Ghép Ảnh AI:</span>
+                    </p>
+                    <p>Nhập khóa <strong>Google Gemini API Key</strong> để kích hoạt AI trò chuyện thời gian thực, đọc ảnh chân dung của bạn và tự động ghép y phục cổ truyền chân thực nhất!</p>
                 </div>
 
                 <div class="space-y-2">
-                    <label class="block font-sans font-semibold text-stone-700 uppercase tracking-wider text-[11px]">Khóa Gemini API (Tùy chọn nếu muốn trò chuyện mở rộng):</label>
-                    <input type="password" id="custom-api-key" placeholder="AIzaSy..." class="w-full p-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500">
-                    <p class="text-[11px] text-stone-400 font-sans">Được lưu trực tiếp trong trình duyệt của bạn và không gửi đi bất kỳ đâu khác.</p>
+                    <label class="block font-sans font-semibold text-stone-700 uppercase tracking-wider text-[11px]">Khóa Google Gemini API Key:</label>
+                    <div class="relative">
+                        <input type="password" id="custom-api-key" placeholder="AIzaSy..." class="w-full p-2.5 pr-10 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500">
+                        <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-2.5 top-2.5 text-stone-400 hover:text-stone-700">
+                            <i data-lucide="eye" id="eye-icon" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-stone-500 font-sans">
+                        Chưa có khóa? Lấy miễn phí tại <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-red-700 underline font-semibold">Google AI Studio</a>. Khóa được bảo mật trong trình duyệt của bạn.
+                    </p>
                 </div>
             </div>
 
@@ -747,8 +848,8 @@
     </div>
 
     <!-- Scripts with cache-busting -->
-    <script src="/static/js/catalog-data.js?v=20260921_12s"></script>
-    <script src="/static/js/visualizer.js?v=20260921_12s"></script>
-    <script src="/static/js/app.js?v=20260921_12s"></script>
+    <script src="/static/js/catalog-data.js?v=20260921_tryon"></script>
+    <script src="/static/js/visualizer.js?v=20260921_tryon"></script>
+    <script src="/static/js/app.js?v=20260921_tryon"></script>
 </body>
 </html>
