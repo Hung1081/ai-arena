@@ -1,0 +1,30 @@
+{
+  "name": "co-phuc-stylist-backend",
+  "version": "1.0.0",
+  "description": "Backend Node.js (Express + Multer + @google/genai) cho Trợ lý Tư vấn Cổ phục Việt Nam",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node -e \"console.log('Backend ready')\""
+  },
+  "keywords": [
+    "co-phuc",
+    "vietnam-traditional-costume",
+    "express",
+    "multer",
+    "google-genai",
+    "gemini"
+  ],
+  "author": "Co Phuc Stylist Team",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^2.23.0",
+    "axios": "^1.20.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "form-data": "^4.0.6",
+    "multer": "^1.4.5-lts.1"
+  }
+}
