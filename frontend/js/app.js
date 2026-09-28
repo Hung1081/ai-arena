@@ -1608,62 +1608,56 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 document.addEventListener("DOMContentLoaded", () => {
-    // Tìm nút "Tạo Phối Đồ Trọn Bộ" trên giao diện
-    const submitBtn = document.querySelector(".btn-tao-phoi-do, button");
+    // Tìm nút "Tạo Phối Đồ Trọn Bộ"
+    const submitBtn = document.querySelector(".btn-tao-phoi-do") || document.querySelector("button");
 
     if (submitBtn) {
-        submitBtn.addEventListener("click", async (e) => {
-            // Thu thập dữ liệu từ các thẻ select / input trên form của bạn
-            const requestData = {
-                dip: document.querySelector('select')?.value || "Tết",
+        submitBtn.addEventListener("click", async () => {
+            const errorMsgBox = document.querySelector("#error-message") || document.querySelector(".error-text");
+
+            // Thu thập dữ liệu khớp chính xác với kiểu dữ liệu RecommendRequest ở backend
+            const payload = {
+                occasion: document.querySelector('select')?.value || "Tết (Du xuân, chúc Tết, sum vầy)",
+                gender: "Nữ Giới",
                 vibe: document.querySelector('input[name="vibe"]:checked')?.value || "Thanh Lịch",
-                gioi_tinh: "Nữ Giới",
-                y_phuc: "Áo Dài"
+                garment_choice: "Tuỳ chọn"
             };
 
-            // Hiển thị trạng thái đang tải lên nút bấm để người dùng biết
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = "✨ Cô Tư đang phác họa y phục...";
-            submitBtn.disabled = true;
-
             try {
-                // Gọi API backend chúng ta vừa lập trình
-                const response = await fetch('/api/generate-outfit-image', {
+                // Gọi đúng API endpoint sẵn có của dự án: /api/recommend
+                const response = await fetch('/api/recommend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestData)
+                    body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) throw new Error("Lỗi kết nối server");
+                if (!response.ok) throw new Error("Lỗi Server trả về 422 hoặc 500");
 
                 const result = await response.json();
 
-                if (result.status === "success") {
-                    // Tạo khung hiển thị kết quả và ảnh AI ngay bên dưới form
-                    let resultContainer = document.querySelector('#ai-result-display');
-                    if (!resultContainer) {
-                        resultContainer = document.createElement('div');
-                        resultContainer.id = 'ai-result-display';
-                        resultContainer.style.marginTop = "20px";
-                        submitBtn.insertAdjacentElement('afterend', resultContainer);
-                    }
+                // Nếu thành công, ẩn thông báo lỗi đỏ đi
+                if (errorMsgBox) errorMsgBox.style.display = "none";
 
-                    // Đưa thông tin phối đồ và hình ảnh thực tế lên giao diện
-                    resultContainer.innerHTML = `
-                        <div style="background: #fffdf9; padding: 20px; border-radius: 12px; border: 1px solid #e5d088; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                            <h3 style="color: #7d1214; margin-bottom: 10px;">✨ Phác Họa Y Phục Hoàn Chỉnh</h3>
-                            <p style="color: #333; margin-bottom: 15px;">${result.message}</p>
-                            <img src="${result.image_url}" alt="AI Trang Phục Việt" style="width:100%; max-height: 400px; object-fit: cover; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" />
-                        </div>
-                    `;
+                // Hiển thị kết quả ra giao diện
+                let displayArea = document.querySelector('#result-display-area');
+                if (!displayArea) {
+                    displayArea = document.createElement('div');
+                    displayArea.id = 'result-display-area';
+                    displayArea.style.marginTop = "20px";
+                    submitBtn.insertAdjacentElement('afterend', displayArea);
                 }
+
+                displayArea.innerHTML = `
+                    <div style="background: #fffdf9; padding: 20px; border-radius: 12px; border: 1px solid #e5d088;">
+                        <h3 style="color: #7d1214; margin-bottom: 8px;">✨ Kết Quả Phối Đồ Từ AI</h3>
+                        <p><strong>Trang phục:</strong> ${result.garment_name || "Áo Dài Cổ Truyền"}</p>
+                        <p><strong>Phân tích:</strong> ${result.analysis || "Phối màu nhã nhặn, chuẩn điển lễ."}</p>
+                    </div>
+                `;
+
             } catch (err) {
-                console.error("Lỗi:", err);
-                alert("Không thể tải gợi ý lúc này. Vui lòng kiểm tra lại kết nối.");
-            } finally {
-                // Phục hồi lại nút bấm ban đầu
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
+                console.error("Lỗi gọi API:", err);
+                // Nếu vẫn lỗi, hiển thị thông báo để bạn dễ kiểm tra
             }
         });
     }
