@@ -2,26 +2,8 @@
 FastAPI Server for Vietnamese Traditional Fashion Stylist Web Application.
 Provides APIs for AI consultation, wardrobe catalog, and serves the frontend.
 """
-import json
-import hashlib
-import redis
-from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException
+
 import os
-
-class OutfitRequest(BaseModel):
-    dip: str
-    vibe: str
-    gioi_tinh: str
-    y_phuc: str
-
-# Khởi tạo kết nối Redis (Đặt dưới dòng khởi tạo app = FastAPI())
-redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-
-def generate_cache_key(data_dict):
-    dict_string = json.dumps(data_dict, sort_keys=True)
-    return hashlib.md5(dict_string.encode()).hexdigest()
-
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, HTTPException
@@ -29,8 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from stylist_engine import TraditionalStylistEngine
+from image_api import router as image_router
 
-from backend.stylist_engine import TraditionalStylistEngine
 
 app = FastAPI(
     title="Cổ Phục Stylist API",
@@ -260,44 +243,37 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main.py:app", host="0.0.0.0", port=8000, reload=True)
 
-@app.post("/api/generate-outfit")
-async def generate_outfit(request_data: OutfitRequest):
-    # Chuyển dữ liệu từ object Pydantic sang dictionary
-    payload = request_data.dict()
-    
-    # Tạo Cache Key từ payload
-    cache_key = f"cota_tuvan:{generate_cache_key(payload)}"
-    
-    # Kiểm tra xem Redis đã có đáp án chưa
-    cached_result = redis_client.get(cache_key)
-    
-    if cached_result:
-        print(f"⚡ Trúng Cache! Trả kết quả ngay lập tức")
-        return json.loads(cached_result)
-        
-    print("⏳ Miss Cache. Đang gọi AI Gemini...")
+# --- BỔ SUNG API TẠO ẢNH VÀ GỢI Ý (ĐẶT Ở CUỐI FILE MAIN.PY) ---
+from pydantic import BaseModel
+
+class OutfitImageRequest(BaseModel):
+    dip: str
+    vibe: str
+    gioi_tinh: str
+    y_phuc: str
+
+@app.post("/api/generate-outfit-image")
+async def generate_outfit_and_image(request_data: OutfitImageRequest):
     try:
-        # TÍCH HỢP GEMINI Ở ĐÂY
-        # Đưa payload vào prompt và gọi model (bạn sử dụng logic đã viết ở stylus_engine.py nếu có)
-        
-        # --- GIẢ LẬP KẾT QUẢ ---
-        gemini_json_response = {
-            "outfit_plan": {
-                "ao": "Áo Nhật Bình Lục Bảo",
-                "quan_vay": "Quần lụa tuyết trắng",
-                "giay": "Hài cong đính ngọc",
-                "tui": "Không mang túi",
-                "khan_non": "Khăn vành dây xanh cobalt"
+        # Xử lý logic gọi AI hoặc trả về dữ liệu mẫu
+        gemini_response = {
+            "outfit_data": {
+                "ao": f"Áo dài truyền thống cho dịp {request_data.dip}",
+                "quan_vay": "Quần lụa trắng",
+                "giay": "Guốc mộc",
+                "khan_non": "Khăn đóng"
             },
-            "loi_khuyen": "Một sự kết hợp tuyệt vời mang đậm nét Cung Đình."
+            "loi_khuyen": f"Phối theo phong cách {request_data.vibe}, tôn vinh nét đẹp văn hóa Việt.",
+            "image_url": "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b"
         }
-        # ------------------------
         
-        # Lưu vào Redis (Sống trong 30 ngày = 2592000 giây)
-        redis_client.set(name=cache_key, value=json.dumps(gemini_json_response), ex=2592000)
-        
-        return gemini_json_response
-        
+        return {
+            "status": "success",
+            "outfit": gemini_response["outfit_data"],
+            "message": gemini_response["loi_khuyen"],
+            "image_url": gemini_response["image_url"]
+        }
     except Exception as e:
-        print(f"Lỗi hệ thống: {e}")
-        raise HTTPException(status_code=500, detail="Không thể kết nối với hệ thống tư vấn lúc này")
+        return {"status": "error", "message": str(e)}
+
+app.include_router(image_router)

@@ -491,7 +491,7 @@ function randomizeOutfit() {
     const catalog = window.STYLIST_CATALOG;
     const randomGarment = catalog.garments[Math.floor(Math.random() * catalog.garments.length)];
     const randomColor = randomGarment.colors[Math.floor(Math.random() * randomGarment.colors.length)];
-    
+
     studioState.garmentId = randomGarment.id;
     studioState.color = randomColor.hex;
     studioState.colorName = randomColor.name;
@@ -533,7 +533,7 @@ function handleImageSelected(e) {
     }
 
     const reader = new FileReader();
-    reader.onload = function(evt) {
+    reader.onload = function (evt) {
         const base64Str = evt.target.result;
         currentUploadedImage = {
             file: file,
@@ -842,7 +842,7 @@ function appendUserMessage(text, imageObj = null) {
     const chatContainer = document.getElementById("chat-messages");
     const msg = document.createElement("div");
     msg.className = "flex items-start justify-end space-x-3";
-    
+
     let imageHtml = "";
     if (imageObj && imageObj.base64) {
         imageHtml = `
@@ -1070,11 +1070,11 @@ async function handleOccasionSubmit(e) {
         const res = await fetch(`${API_BASE_URL}/api/recommend`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                occasion: occasion, 
-                gender: gender, 
+            body: JSON.stringify({
+                occasion: occasion,
+                gender: gender,
                 vibe: vibe,
-                element: garmentPref !== "auto" ? garmentPref : null 
+                element: garmentPref !== "auto" ? garmentPref : null
             })
         });
         const data = await res.json();
@@ -1341,7 +1341,7 @@ let currentTryOnGarmentId = "ao_dai";
 
 function openTryOnWithCurrentLook() {
     const garmentId = (currentLookRecommendation && currentLookRecommendation.garment_id) || studioState.garmentId || "ao_dai";
-    
+
     // Check if user uploaded a photo
     let userImgBase64 = null;
     if (currentUploadedImage && currentUploadedImage.base64) {
@@ -1515,7 +1515,7 @@ function applyTryOnToStudio() {
 }
 
 function escapeHTML(str) {
-    return str.replace(/[&<>'"]/g, 
+    return str.replace(/[&<>'"]/g,
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
     );
 }
@@ -1542,3 +1542,129 @@ function getLocalConsultationFallback(query) {
         }
     };
 }
+
+
+// --- ĐOẠN CODE TÍCH HỢP TỰ ĐỘNG GỌI API TẠO ẢNH & GỢI Ý ---
+document.addEventListener("DOMContentLoaded", () => {
+    // Tìm nút bấm "Tạo Phối Đồ Trọn Bộ" dựa trên class hoặc cấu trúc giao diện
+    const submitBtn = document.querySelector("button") || document.getElementById("btn-tao-phoi-do");
+
+    if (submitBtn) {
+        submitBtn.addEventListener("click", async (e) => {
+            // Ngăn chặn form load lại trang (nếu nút nằm trong form)
+            // e.preventDefault(); 
+
+            // Thu thập dữ liệu từ các ô lựa chọn trên giao diện
+            const requestData = {
+                dip: document.querySelector('select')?.value || "Tết",
+                vibe: document.querySelector('input[name="vibe"]:checked')?.value || "Thanh Lịch",
+                gioi_tinh: "Nữ Giới",
+                y_phuc: "Áo Dài"
+            };
+
+            console.log("Đang gửi yêu cầu lên Cô Tư AI...", requestData);
+
+            try {
+                // Gọi API backend FastAPI mà chúng ta vừa cấu hình
+                const response = await fetch('/api/generate-outfit-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) throw new Error("Lỗi kết nối server");
+
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    console.log("Nhận kết quả thành công:", result);
+
+                    // Tìm nơi trên web để hiển thị bức ảnh AI tạo ra và nhúng vào
+                    // (Bạn có thể đổi id 'image-result-container' thành class hoặc id thật trên HTML của bạn)
+                    let imgContainer = document.querySelector('#image-result-container');
+                    if (!imgContainer) {
+                        // Nếu chưa có thẻ chứa ảnh, tạo tự động một thẻ hiển thị bên dưới nút bấm
+                        imgContainer = document.createElement('div');
+                        imgContainer.id = 'image-result-container';
+                        imgContainer.style.marginTop = "20px";
+                        submitBtn.insertAdjacentElement('afterend', imgContainer);
+                    }
+
+                    // Render hình ảnh lên giao diện
+                    imgContainer.innerHTML = `
+                        <div style="background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                            <h4 style="color: #7d1214; margin-bottom: 10px;">✨ Phác Họa Y Phục Từ Cô Tư:</h4>
+                            <p><strong>Áo:</strong> ${result.outfit.ao}</p>
+                            <p><strong>Lời khuyên:</strong> ${result.message}</p>
+                            <img src="${result.image_url}" alt="AI Việt Phục" style="width:100%; border-radius:8px; margin-top: 10px;" />
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                console.error("Lỗi:", err);
+                alert("Không thể tải gợi ý lúc này. Vui lòng thử lại.");
+            }
+        });
+    }
+});
+document.addEventListener("DOMContentLoaded", () => {
+    // Tìm nút "Tạo Phối Đồ Trọn Bộ" trên giao diện
+    const submitBtn = document.querySelector(".btn-tao-phoi-do, button");
+
+    if (submitBtn) {
+        submitBtn.addEventListener("click", async (e) => {
+            // Thu thập dữ liệu từ các thẻ select / input trên form của bạn
+            const requestData = {
+                dip: document.querySelector('select')?.value || "Tết",
+                vibe: document.querySelector('input[name="vibe"]:checked')?.value || "Thanh Lịch",
+                gioi_tinh: "Nữ Giới",
+                y_phuc: "Áo Dài"
+            };
+
+            // Hiển thị trạng thái đang tải lên nút bấm để người dùng biết
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = "✨ Cô Tư đang phác họa y phục...";
+            submitBtn.disabled = true;
+
+            try {
+                // Gọi API backend chúng ta vừa lập trình
+                const response = await fetch('/api/generate-outfit-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) throw new Error("Lỗi kết nối server");
+
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    // Tạo khung hiển thị kết quả và ảnh AI ngay bên dưới form
+                    let resultContainer = document.querySelector('#ai-result-display');
+                    if (!resultContainer) {
+                        resultContainer = document.createElement('div');
+                        resultContainer.id = 'ai-result-display';
+                        resultContainer.style.marginTop = "20px";
+                        submitBtn.insertAdjacentElement('afterend', resultContainer);
+                    }
+
+                    // Đưa thông tin phối đồ và hình ảnh thực tế lên giao diện
+                    resultContainer.innerHTML = `
+                        <div style="background: #fffdf9; padding: 20px; border-radius: 12px; border: 1px solid #e5d088; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                            <h3 style="color: #7d1214; margin-bottom: 10px;">✨ Phác Họa Y Phục Hoàn Chỉnh</h3>
+                            <p style="color: #333; margin-bottom: 15px;">${result.message}</p>
+                            <img src="${result.image_url}" alt="AI Trang Phục Việt" style="width:100%; max-height: 400px; object-fit: cover; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" />
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                console.error("Lỗi:", err);
+                alert("Không thể tải gợi ý lúc này. Vui lòng kiểm tra lại kết nối.");
+            } finally {
+                // Phục hồi lại nút bấm ban đầu
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+});
