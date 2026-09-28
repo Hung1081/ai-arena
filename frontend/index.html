@@ -286,7 +286,16 @@
             <!-- Chat Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <!-- Chat Stream (8 cols) -->
-                <div class="lg:col-span-8 flex flex-col h-[650px] lacquer-card overflow-hidden">
+                <div id="chat-container" class="lg:col-span-8 flex flex-col h-[650px] lacquer-card overflow-hidden relative">
+                    <!-- Drag & Drop Full Overlay (Gemini Style) -->
+                    <div id="chat-drop-overlay" class="absolute inset-0 z-30 bg-amber-950/85 backdrop-blur-sm hidden flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-amber-400 m-3 rounded-2xl transition-all duration-200 pointer-events-none">
+                        <div class="w-16 h-16 rounded-3xl bg-amber-500/20 border border-amber-300 flex items-center justify-center text-amber-300 mb-3 shadow-lg animate-bounce">
+                            <i data-lucide="image-plus" class="w-8 h-8"></i>
+                        </div>
+                        <h4 class="text-lg font-bold text-amber-100 font-imperial mb-1">Thả ảnh chân dung vào đây</h4>
+                        <p class="text-xs text-amber-200/90 font-serif-vi max-w-sm">Cô Tư & Gemini sẽ tự động nhận diện khuôn mặt và vóc dáng để gợi ý ghép cổ phục chuẩn mực!</p>
+                    </div>
+
                     <div class="p-4 border-b border-amber-200/60 bg-amber-50/50 flex items-center justify-between">
                         <div class="flex items-center space-x-3">
                             <div class="w-9 h-9 rounded-2xl bg-red-800 text-amber-200 flex items-center justify-center font-bold text-sm shadow">
@@ -919,8 +928,8 @@
     </div>
 
     <!-- Scripts with cache-busting -->
-    <script src="/static/js/catalog-data.js?v=20260921_tryon"></script>
-    <script src="/static/js/visualizer.js?v=20260921_tryon"></script>
-    <script src="/static/js/app.js?v=20260921_tryon"></script>
+    <script src="/static/js/catalog-data.js?v=20260928_dragdrop"></script>
+    <script src="/static/js/visualizer.js?v=20260928_dragdrop"></script>
+    <script src="/static/js/app.js?v=20260928_dragdrop"></script>
 </body>
 </html>

@@ -157,7 +157,10 @@ document.addEventListener("DOMContentLoaded", () => {
         window.lucide.createIcons();
     }
 
-    // 4. Auto focus chat input
+    // 4. Initialize Drag & Drop & Paste for Chatbot (Gemini Style)
+    initChatDragAndDrop();
+
+    // 5. Auto focus chat input
     const chatInput = document.getElementById("chat-input");
     if (chatInput) {
         chatInput.addEventListener("keydown", (e) => {
@@ -523,12 +526,14 @@ function triggerImageUpload() {
     if (input) input.click();
 }
 
-function handleImageSelected(e) {
-    const file = e.target.files && e.target.files[0];
+/**
+ * Process any image file (from input, drag-and-drop, or paste)
+ */
+function processImageFile(file) {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-        alert("Vui lòng chọn một tệp hình ảnh hợp lệ (PNG, JPG, WEBP).");
+        alert("Vui lòng chọn hoặc kéo thả một tệp hình ảnh hợp lệ (PNG, JPG, WEBP).");
         return;
     }
 
@@ -539,7 +544,7 @@ function handleImageSelected(e) {
             file: file,
             base64: base64Str,
             mimeType: file.type || "image/jpeg",
-            name: file.name
+            name: file.name || "anh-keo-tha.jpg"
         };
 
         const previewContainer = document.getElementById("chat-image-preview-container");
@@ -548,12 +553,25 @@ function handleImageSelected(e) {
 
         if (previewContainer && previewImg && nameEl) {
             previewImg.src = base64Str;
-            nameEl.textContent = file.name;
+            nameEl.textContent = file.name || "Ảnh chân dung của bạn";
             previewContainer.classList.remove("hidden");
         }
         if (window.lucide) window.lucide.createIcons();
+
+        // Focus text area so user can hit enter or type instruction
+        const chatInput = document.getElementById("chat-input");
+        if (chatInput) {
+            chatInput.focus();
+        }
     };
     reader.readAsDataURL(file);
+}
+
+function handleImageSelected(e) {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+        processImageFile(file);
+    }
 }
 
 function removeChatImage() {
@@ -562,6 +580,91 @@ function removeChatImage() {
     if (input) input.value = "";
     const previewContainer = document.getElementById("chat-image-preview-container");
     if (previewContainer) previewContainer.classList.add("hidden");
+}
+
+/**
+ * Initialize Gemini-like Drag and Drop & Clipboard Paste for Chatbot
+ */
+function initChatDragAndDrop() {
+    const chatContainer = document.getElementById("chat-container");
+    const dropOverlay = document.getElementById("chat-drop-overlay");
+    const chatInput = document.getElementById("chat-input");
+
+    if (!chatContainer) return;
+
+    let dragCounter = 0;
+
+    // Prevent default drag behaviors across window
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        window.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        }, false);
+    });
+
+    // Detect file drag over chat container
+    chatContainer.addEventListener('dragenter', (e) => {
+        dragCounter++;
+        if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+            if (dropOverlay) {
+                dropOverlay.classList.remove('hidden');
+                dropOverlay.classList.add('flex');
+            }
+        }
+    });
+
+    chatContainer.addEventListener('dragover', (e) => {
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    });
+
+    chatContainer.addEventListener('dragleave', (e) => {
+        dragCounter--;
+        if (dragCounter <= 0) {
+            dragCounter = 0;
+            if (dropOverlay) {
+                dropOverlay.classList.add('hidden');
+                dropOverlay.classList.remove('flex');
+            }
+        }
+    });
+
+    chatContainer.addEventListener('drop', (e) => {
+        dragCounter = 0;
+        if (dropOverlay) {
+            dropOverlay.classList.add('hidden');
+            dropOverlay.classList.remove('flex');
+        }
+
+        const dt = e.dataTransfer;
+        if (dt && dt.files && dt.files.length > 0) {
+            const file = dt.files[0];
+            processImageFile(file);
+        }
+    });
+
+    // Support copy-paste image directly from clipboard (Ctrl+V / Cmd+V)
+    if (chatInput) {
+        chatInput.addEventListener('paste', (e) => {
+            const clipboardData = e.clipboardData || window.clipboardData;
+            if (!clipboardData) return;
+
+            const items = clipboardData.items;
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const file = items[i].getAsFile();
+                        if (file) {
+                            e.preventDefault();
+                            processImageFile(file);
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+    }
 }
 
 /**
