@@ -2,8 +2,26 @@
 FastAPI Server for Vietnamese Traditional Fashion Stylist Web Application.
 Provides APIs for AI consultation, wardrobe catalog, and serves the frontend.
 """
-
+import json
+import hashlib
+import redis
+from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
 import os
+
+class OutfitRequest(BaseModel):
+    dip: str
+    vibe: str
+    gioi_tinh: str
+    y_phuc: str
+
+# Khởi tạo kết nối Redis (Đặt dưới dòng khởi tạo app = FastAPI())
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+def generate_cache_key(data_dict):
+    dict_string = json.dumps(data_dict, sort_keys=True)
+    return hashlib.md5(dict_string.encode()).hexdigest()
+
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, HTTPException
@@ -241,3 +259,45 @@ if FRONTEND_DIR.exists():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main.py:app", host="0.0.0.0", port=8000, reload=True)
+
+@app.post("/api/generate-outfit")
+async def generate_outfit(request_data: OutfitRequest):
+    # Chuyển dữ liệu từ object Pydantic sang dictionary
+    payload = request_data.dict()
+    
+    # Tạo Cache Key từ payload
+    cache_key = f"cota_tuvan:{generate_cache_key(payload)}"
+    
+    # Kiểm tra xem Redis đã có đáp án chưa
+    cached_result = redis_client.get(cache_key)
+    
+    if cached_result:
+        print(f"⚡ Trúng Cache! Trả kết quả ngay lập tức")
+        return json.loads(cached_result)
+        
+    print("⏳ Miss Cache. Đang gọi AI Gemini...")
+    try:
+        # TÍCH HỢP GEMINI Ở ĐÂY
+        # Đưa payload vào prompt và gọi model (bạn sử dụng logic đã viết ở stylus_engine.py nếu có)
+        
+        # --- GIẢ LẬP KẾT QUẢ ---
+        gemini_json_response = {
+            "outfit_plan": {
+                "ao": "Áo Nhật Bình Lục Bảo",
+                "quan_vay": "Quần lụa tuyết trắng",
+                "giay": "Hài cong đính ngọc",
+                "tui": "Không mang túi",
+                "khan_non": "Khăn vành dây xanh cobalt"
+            },
+            "loi_khuyen": "Một sự kết hợp tuyệt vời mang đậm nét Cung Đình."
+        }
+        # ------------------------
+        
+        # Lưu vào Redis (Sống trong 30 ngày = 2592000 giây)
+        redis_client.set(name=cache_key, value=json.dumps(gemini_json_response), ex=2592000)
+        
+        return gemini_json_response
+        
+    except Exception as e:
+        print(f"Lỗi hệ thống: {e}")
+        raise HTTPException(status_code=500, detail="Không thể kết nối với hệ thống tư vấn lúc này")
