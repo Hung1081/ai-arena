@@ -1608,7 +1608,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 document.addEventListener("DOMContentLoaded", () => {
-    // Bắt đúng nút bấm dựa vào class hoặc nội dung bên trong
     const buttons = document.querySelectorAll("button");
     let submitBtn = null;
 
@@ -1619,45 +1618,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     if (submitBtn) {
-        // Xóa các sự kiện cũ nếu có để tránh bị xung đột
         const newBtn = submitBtn.cloneNode(true);
         submitBtn.parentNode.replaceChild(newBtn, submitBtn);
 
         newBtn.addEventListener("click", async (e) => {
             e.preventDefault();
 
-            // Ẩn thông báo lỗi cũ nếu có
             const errorMsg = document.querySelector("#error-message");
             if (errorMsg) errorMsg.style.display = "none";
 
-            // Lấy chính xác giá trị từ các ô giao diện người dùng đang chọn
-            const occasionVal = document.querySelector('select')?.value || "Tết (Du xuân, chúc Tết, sum vầy)";
-            const genderVal = "Nữ Giới";
-            const vibeVal = document.querySelector('input[name="vibe"]:checked']?.value || "Thanh Lịch";
-
-            // Đóng gói payload đúng theo mô hình RecommendRequest của backend
             const payload = {
-                query: `Phối đồ đi ${occasionVal} theo phong cách ${vibeVal}`,
-                gender: genderVal,
-                occasion: occasionVal,
-                dynasty: "Nguyễn",
-                garment_choice: "Tuỳ chọn"
+                occasion: document.querySelector('select')?.value || "Tết",
+                vibe: document.querySelector('input[name="vibe"]:checked']?.value || "Thanh Lịch",
+                    gender: "Nữ Giới",
+                    dynasty: "Nguyễn"
             };
 
             try {
-                const response = await fetch('/api/recommend', {
+                // Gọi API mới tự tạo, không bị lỗi 422 nữa
+                const response = await fetch('/api/custom-recommend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Server trả về mã lỗi: ${response.status}`);
-                }
+                if (!response.ok) throw new Error("Lỗi Server");
 
                 const result = await response.json();
 
-                // Hiển thị kết quả trả về từ AI ra giao diện
                 let displayArea = document.querySelector('#ai-result-box');
                 if (!displayArea) {
                     displayArea = document.createElement('div');
@@ -1668,12 +1656,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 displayArea.innerHTML = `
                     <h3 style="color: #7d1214; margin-bottom: 8px;">✨ Kết Quả Phối Đồ Từ Cô Tư</h3>
-                    <p><strong>Y phục:</strong> ${result.garment_name || "Áo Dài Truyền Thống"}</p>
-                    <p><strong>Đánh giá:</strong> ${result.analysis || "Phối màu nhã nhặn, chuẩn mực."}</p>
+                    <p><strong>Y phục:</strong> ${result.garment_name}</p>
+                    <p><strong>Đánh giá:</strong> ${result.analysis}</p>
+                    <img src="${result.image_url}" alt="AI Việt Phục" style="width:100%; border-radius:8px; margin-top:10px;" />
                 `;
 
             } catch (err) {
-                console.error("Lỗi gọi API:", err);
+                console.error("Lỗi:", err);
                 if (errorMsg) {
                     errorMsg.innerText = "Không thể tải gợi ý lúc này. Vui lòng thử lại.";
                     errorMsg.style.display = "block";
