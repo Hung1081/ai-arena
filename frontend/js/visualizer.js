@@ -25,42 +25,42 @@ class TraditionalVisualizer {
         this.photoModels = {
             ao_dai: {
                 title: "Áo Dài Di Sản - Nét Đẹp Hà Thành",
-                url: "https://i.pinimg.com/736x/8f/d0/bf/8fd0bfc34076fbe4f07aaed3852e5878.jpg",
+                url: "blob:https://gemini.google.com/c3c4c460-1933-4be9-97ed-1d70ae961911",
                 fallbackUrl: "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=900&q=85",
                 caption: "Nét đoan trang, đài các của thiếu nữ Việt trong tà áo dài tơ tằm cổ điển bên không gian hoài niệm xưa.",
                 photographer: "Bộ Sưu Tập Cổ Phục Việt Nam (Pinterest)"
             },
             nhat_binh: {
                 title: "Áo Nhật Bình - Cung Đình & Cô Dâu",
-                url: "https://i.pinimg.com/736x/92/69/04/92690435400e4c62913af0763f92d07c.jpg",
+                url: "blob:https://gemini.google.com/cfcda632-8451-4a66-bfa5-fa26cd5b45f6",
                 fallbackUrl: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=900&q=85",
                 caption: "Vẻ đẹp vương giả, uy nghi của nàng dâu diện Áo Nhật Bình ngũ sắc và khăn vành dây quấn nếp hoàng gia.",
                 photographer: "Bộ Sưu Tập Cổ Phục Việt Nam (Pinterest)"
             },
             ngu_than: {
                 title: "Áo Ngũ Thân & Áo Tấc - Khí Chất Mực Thước",
-                url: "https://i.pinimg.com/736x/1b/f2/46/1bf246f616e586bc3a91bd12d43dc850.jpg",
+                url: "blob:https://gemini.google.com/31d2645e-9d18-440e-ad15-8f1458841c07",
                 fallbackUrl: "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=900&q=85",
                 caption: "Phong thái điềm đạm, tao nhã của người mặc Áo Ngũ Thân 5 thân 5 cúc cài bên hữu chuẩn điển lễ.",
                 photographer: "Bộ Sưu Tập Cổ Phục Việt Nam (Pinterest)"
             },
             tu_than: {
                 title: "Áo Tứ Thân & Yếm Đào - Nét Duyên Kinh Bắc",
-                url: "https://i.pinimg.com/736x/9d/53/2f/9d532f5ebe6f7bf1b84b7f69553790ba.jpg",
+                url: "blob:https://gemini.google.com/967b493e-538b-49b0-8479-cf62ebeb0774",
                 fallbackUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=85",
                 caption: "Nét duyên mộc mạc e ấp của liền chị quan họ bên nón quai thao buông dải thao tơ hồng.",
                 photographer: "Bộ Sưu Tập Cổ Phục Việt Nam (Pinterest)"
             },
             ao_ba_ba: {
                 title: "Áo Bà Ba - Hồn Quê Sông Nước Phương Nam",
-                url: "https://i.pinimg.com/736x/54/5c/ff/545cff5155315a02af0be9c22c112aeb.jpg",
+                url: "blob:https://gemini.google.com/6fc895cf-40c9-4ca0-b238-1553cf2b9e3e",
                 fallbackUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=900&q=85",
                 caption: "Vẻ đẹp thuần hậu, tươi tắn của tà áo bà ba lụa mềm xẻ tà phối khăn rằn mộc mạc và nón lá nghiêng che.",
                 photographer: "Bộ Sưu Tập Cổ Phục Việt Nam (Pinterest)"
             },
             trang_phuc_dan_toc: {
                 title: "Thổ Cẩm Vùng Cao - Bản Sắc Đại Ngàn",
-                url: "https://i.pinimg.com/736x/94/74/de/9474de5ce232e5fa1b6793493ea365b7.jpg",
+                url: "blob:https://gemini.google.com/ab00d425-e4e9-45b6-9fe1-a97d3cfa7652",
                 fallbackUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=85",
                 caption: "Bản hòa ca đa sắc của thổ cẩm dệt lanh thủ công, đính chuông bạc và hoa văn kỷ hà vùng núi phía Bắc.",
                 photographer: "Bộ Sưu Tập Cổ Phục Việt Nam (Pinterest)"
