@@ -1049,100 +1049,262 @@ function applyLookToStudio() {
 /**
  * Occasion & Vibe Matcher Wizard
  */
+/**
+ * Occasion & Vibe Matcher Wizard - Tích hợp AI Google Gemini & Pollinations Image Generator
+ */
 async function handleOccasionSubmit(e) {
-    e.preventDefault();
-    const occasion = document.getElementById("gen-occasion").value;
-    const gender = document.getElementById("gen-gender").value;
+    if (e && e.preventDefault) e.preventDefault();
+
+    // 1. Thu thập chính xác giá trị từ các ô input/select
+    const occasionSelect = document.getElementById("gen-occasion");
+    const occasion = occasionSelect?.value || "tet";
+    const occasionText = occasionSelect?.selectedOptions?.[0]?.text || occasion;
+
     const vibeRadio = document.querySelector('input[name="vibe"]:checked');
     const vibe = vibeRadio ? vibeRadio.value : "thanh_lich";
-    const garmentPref = document.getElementById("gen-garment-pref").value;
+    const vibeLabel = vibeRadio?.closest('label')?.querySelector('.font-bold')?.innerText || "Thanh Lịch";
 
+    const genderSelect = document.getElementById("gen-gender");
+    const gender = genderSelect?.value || "nu";
+    const genderText = genderSelect?.selectedOptions?.[0]?.text || (gender === "nam" ? "Nam Giới" : "Nữ Giới");
+
+    const garmentPrefSelect = document.getElementById("gen-garment-pref");
+    const garmentPref = garmentPrefSelect?.value || "auto";
+    const garmentText = garmentPrefSelect?.selectedOptions?.[0]?.text || "Tự động gợi ý hòa hợp";
+
+    // 2. Tìm nút bấm và các phần tử giao diện
+    const submitBtn = document.getElementById("btn-tao-phoi-do") || document.querySelector('#occasion-form button[type="submit"]') || document.querySelector("button.bg-red-800");
+    const errorMsg = document.getElementById("error-message");
     const resultBox = document.getElementById("generator-result-box");
-    resultBox.classList.remove("hidden");
-    resultBox.innerHTML = `
-        <div class="text-center py-6">
-            <div class="w-8 h-8 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            <p class="text-xs text-stone-500 font-serif-vi">Đang hòa sắc theo công thức: Y phục + Hoàn cảnh + Vibe...</p>
-        </div>
-    `;
+
+    // Ẩn dòng chữ đỏ báo lỗi nếu có
+    if (errorMsg) {
+        errorMsg.classList.add("hidden");
+        errorMsg.innerText = "";
+    }
+
+    // Lưu lại nội dung gốc của nút bấm để phục hồi sau này
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+
+    // 3. Hiển thị trạng thái loading trên nút bấm
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `
+            <div class="flex items-center justify-center space-x-2">
+                <svg class="animate-spin h-4 w-4 text-amber-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>✨ Cô Tư đang phác họa y phục...</span>
+            </div>
+        `;
+    }
+
+    // 4. Hiển thị khung kết quả ở trạng thái đang phác họa
+    if (resultBox) {
+        resultBox.classList.remove("hidden");
+        resultBox.innerHTML = `
+            <div class="lacquer-card p-8 bg-gradient-to-br from-amber-50/90 to-orange-50/40 border border-amber-300 rounded-3xl text-center space-y-4 shadow-sm animate-pulse">
+                <div class="w-12 h-12 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <div class="space-y-1">
+                    <span class="red-seal text-xs">AI Stylist & Họa Sĩ Cổ Phong</span>
+                    <h3 class="text-lg font-bold font-imperial text-stone-900">Cô Tư Đang Phác Họa Y Phục Của Bạn</h3>
+                    <p class="text-xs text-stone-600 font-serif-vi max-w-md mx-auto">
+                        Đang đối chiếu điển lễ triều đại, phối hòa sắc ngũ hành và dệt nên hình ảnh cổ phục tinh hoa...
+                    </p>
+                </div>
+            </div>
+        `;
+    }
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/recommend`, {
+        const apiKey = localStorage.getItem("gemini_api_key") || localStorage.getItem("CO_TU_GEMINI_KEY") || "";
+
+        // 5. Gửi POST request đến API backend /api/generate-outfit-image
+        const payload = {
+            dip: occasionText,
+            vibe: vibeLabel,
+            gioi_tinh: genderText,
+            y_phuc: garmentText,
+            gemini_api_key: apiKey
+        };
+
+        const response = await fetch(`${API_BASE_URL}/api/generate-outfit-image`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                occasion: occasion,
-                gender: gender,
-                vibe: vibe,
-                element: garmentPref !== "auto" ? garmentPref : null
-            })
+            body: JSON.stringify(payload)
         });
-        const data = await res.json();
-        const look = data.look_card;
-        currentLookRecommendation = look;
 
-        resultBox.innerHTML = `
-            <div class="lacquer-card p-6 bg-gradient-to-br from-amber-50/90 to-orange-50/40 border border-amber-300 space-y-4 rounded-3xl">
-                <div class="flex items-center justify-between border-b border-amber-200 pb-3">
-                    <div>
-                        <div class="flex items-center space-x-2 mb-1">
-                            <span class="red-seal text-[11px]">Công Thức Hòa Phối</span>
-                            <span class="text-xs font-semibold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-full">Vibe ${look.vibe || 'Thanh lịch'}</span>
+        if (!response.ok) {
+            throw new Error(`Máy chủ phản hồi mã lỗi (${response.status}). Vui lòng thử lại.`);
+        }
+
+        const data = await response.json();
+
+        if (data.status !== "success") {
+            throw new Error(data.message || "Không thể tạo gợi ý và hình ảnh y phục lúc này.");
+        }
+
+        // Lưu dữ liệu vào biến toàn cục để có thể tích hợp với Studio Mix Đồ
+        currentLookRecommendation = {
+            title: `Tạo Hình Y Phục Dịp ${occasionText.split('(')[0].trim()}`,
+            garment_name: data.outfit?.ao || "Cổ Phục Việt Nam",
+            shirt_color: "Sắc màu cổ phong",
+            bottom: data.outfit?.quan_vay || "Quần lụa truyền thống",
+            fabric: "Lụa tơ tằm & Gấm hoa",
+            shoes: data.outfit?.phu_kien || "Guốc mộc",
+            bag: "Túi gấm thêu tay",
+            headdress: "Khăn đóng / Khăn vành",
+            jewelry: "Kiềng bạc chạm sen",
+            hairstyle: "Tóc búi cài trâm",
+            etiquette_tip: data.message,
+            palette: ["#9E1A1A", "#D4AF37", "#1A5336", "#FAF6EE"],
+            palette_names: ["Đỏ Son", "Hoàng Kim", "Xanh Ngọc", "Nền Kem"]
+        };
+
+        // 6. Render kết quả phối đồ và chèn ảnh AI sinh ra
+        if (resultBox) {
+            resultBox.innerHTML = `
+                <div class="lacquer-card p-6 lg:p-8 bg-gradient-to-br from-amber-50/95 via-orange-50/30 to-amber-100/50 border border-amber-300 space-y-6 rounded-3xl shadow-lg">
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-amber-200/80 pb-4 gap-2">
+                        <div>
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="red-seal text-[11px]">✨ Phác Họa Từ Cô Tư AI</span>
+                                <span class="text-xs font-semibold text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full">
+                                    Vibe: ${vibeLabel}
+                                </span>
+                            </div>
+                            <h3 class="text-xl lg:text-2xl font-bold font-imperial text-stone-900">
+                                Gợi Ý Y Phục Dịp ${occasionText.split('(')[0].trim()}
+                            </h3>
                         </div>
-                        <h3 class="text-xl font-bold font-imperial text-stone-900">${look.title}</h3>
+                        <span class="text-xs text-stone-500 font-serif-vi bg-white/80 border border-amber-200 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+                            Dành cho: <strong>${genderText.split('(')[0].trim()}</strong>
+                        </span>
                     </div>
-                    <span class="text-xs text-stone-500 font-serif-vi">${look.dynasty}</span>
-                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-serif-vi text-stone-700">
-                    <div class="space-y-1.5">
-                        <p><strong>Y phục chủ đạo:</strong> <span class="text-red-900 font-bold">${look.garment_name}</span></p>
-                        <p><strong>Màu áo đề xuất:</strong> ${look.shirt_color || 'Đỏ son / Hoàng kim'}</p>
-                        <p><strong>Quần / Váy:</strong> ${look.bottom}</p>
-                        <p><strong>Chất liệu khuyên dùng:</strong> ${look.fabric}</p>
+                    <!-- Main Content Grid: Image + Details -->
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        <!-- AI Generated Image Showcase -->
+                        <div class="lg:col-span-5 space-y-3">
+                            <div class="relative group overflow-hidden rounded-2xl border-2 border-amber-300 shadow-md bg-stone-900 aspect-square flex items-center justify-center">
+                                <!-- Image with smooth load transition -->
+                                <img 
+                                    id="outfit-ai-image"
+                                    src="${data.image_url}" 
+                                    alt="Phác Họa Cổ Phục Việt Nam AI" 
+                                    class="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+                                    loading="lazy"
+                                    onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800&auto=format&fit=crop';"
+                                />
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-4">
+                                    <p class="text-xs text-amber-200 font-serif-vi">Bức họa phục dựng trang phục truyền thống Việt Nam</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between text-xs text-stone-500 font-serif-vi px-1">
+                                <span class="flex items-center space-x-1">
+                                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-600"></i>
+                                    <span>Họa ảnh: AI Vision Studio</span>
+                                </span>
+                                <a href="${data.image_url}" target="_blank" rel="noopener noreferrer" class="text-red-800 hover:text-red-900 font-semibold underline flex items-center space-x-1">
+                                    <span>Mở ảnh lớn / Tải về</span>
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Styling Details -->
+                        <div class="lg:col-span-7 space-y-4">
+                            <!-- Outfit Breakdown Cards -->
+                            <div class="space-y-3">
+                                <div class="p-3.5 bg-white/90 rounded-2xl border border-amber-200 shadow-2xs">
+                                    <div class="flex items-center space-x-2 text-red-900 font-bold text-xs uppercase tracking-wide mb-1">
+                                        <i data-lucide="shirt" class="w-4 h-4 text-red-800"></i>
+                                        <span>Y Phục Chủ Đạo (Áo)</span>
+                                    </div>
+                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${data.outfit?.ao || 'Áo Dài Truyền Thống'}</p>
+                                </div>
+
+                                <div class="p-3.5 bg-white/90 rounded-2xl border border-amber-200 shadow-2xs">
+                                    <div class="flex items-center space-x-2 text-amber-900 font-bold text-xs uppercase tracking-wide mb-1">
+                                        <i data-lucide="scissors" class="w-4 h-4 text-amber-800"></i>
+                                        <span>Quần / Váy Phối Cùng</span>
+                                    </div>
+                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${data.outfit?.quan_vay || 'Quần lụa ống rộng mềm mại'}</p>
+                                </div>
+
+                                <div class="p-3.5 bg-white/90 rounded-2xl border border-amber-200 shadow-2xs">
+                                    <div class="flex items-center space-x-2 text-stone-800 font-bold text-xs uppercase tracking-wide mb-1">
+                                        <i data-lucide="gem" class="w-4 h-4 text-stone-700"></i>
+                                        <span>Trọn Bộ Phụ Kiện Đi Kèm</span>
+                                    </div>
+                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${data.outfit?.phu_kien || 'Khăn đóng, guốc mộc và kiềng bạc'}</p>
+                                </div>
+                            </div>
+
+                            <!-- Lời khuyên văn hóa từ Cô Tư -->
+                            <div class="p-4 bg-amber-100/60 rounded-2xl text-xs font-serif-vi text-stone-800 border-l-4 border-red-800 shadow-2xs space-y-1">
+                                <div class="font-bold text-red-900 flex items-center space-x-1.5 mb-1">
+                                    <i data-lucide="feather" class="w-4 h-4"></i>
+                                    <span>Lời Khuyên Từ Cô Tư AI:</span>
+                                </div>
+                                <p class="italic leading-relaxed">"${data.message}"</p>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                                <button onclick="applyLookToStudio()" class="w-full sm:flex-1 py-3 px-4 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 text-xs font-semibold shadow-md flex items-center justify-center space-x-2 transition">
+                                    <i data-lucide="palette" class="w-4 h-4"></i>
+                                    <span>Mặc Thử Trong Studio Mix Đồ</span>
+                                </button>
+                                <button onclick="switchTab('chat'); sendQuickPrompt('Cô Tư ơi, hãy tư vấn thêm về cách chọn phụ kiện cho tạo hình: ${data.outfit?.ao ? data.outfit.ao.slice(0, 40) : 'Cổ phục'} này nhé!');" class="w-full sm:w-auto py-3 px-4 rounded-2xl border border-amber-400 bg-white hover:bg-amber-50 text-stone-700 text-xs font-semibold transition flex items-center justify-center space-x-1.5">
+                                    <i data-lucide="message-square" class="w-4 h-4 text-amber-700"></i>
+                                    <span>Hỏi Thêm Cô Tư</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="space-y-1.5">
-                        <p><strong>Giày dép:</strong> ${look.shoes}</p>
-                        <p><strong>Túi xách:</strong> ${look.bag}</p>
-                        <p><strong>Khăn / Nón:</strong> ${look.headdress}</p>
-                        <p><strong>Trang sức & Tóc:</strong> ${look.jewelry} · ${look.hairstyle}</p>
-                    </div>
                 </div>
+            `;
+            // Cuộn mượt đến khung kết quả
+            resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
 
-                <div class="pt-1">
-                    <strong class="text-xs block mb-1.5 font-sans uppercase tracking-wider text-stone-600">Bảng Màu Tranh Dân Gian:</strong>
-                    <div class="flex flex-wrap gap-2">
-                        ${(look.palette || []).map((hex, i) => `
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-[11px] bg-white border border-stone-200 shadow-2xs">
-                                <span class="w-3 h-3 rounded-full mr-1.5 border border-stone-300" style="background-color: ${hex}"></span>
-                                ${(look.palette_names && look.palette_names[i]) || hex}
-                            </span>
-                        `).join("")}
-                    </div>
-                </div>
-
-                <div class="p-3.5 bg-white/90 rounded-2xl text-xs font-serif-vi italic text-stone-700 border-l-3 border-red-800 shadow-2xs">
-                    "<strong>Lời khuyên văn hóa:</strong> ${look.etiquette_tip}"
-                </div>
-
-                <div class="pt-2 flex items-center space-x-3">
-                    <button onclick="applyLookToStudio()" class="flex-1 py-3 px-4 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 text-xs font-medium shadow-md flex items-center justify-center space-x-2 transition">
-                        <i data-lucide="palette" class="w-4 h-4"></i>
-                        <span>Thử Tạo Hình Này Trong Phòng Mix Đồ</span>
-                    </button>
-                    <button onclick="switchTab('chat'); sendQuickPrompt('Tư vấn thêm chi tiết cho tạo hình: ${look.title}');" class="py-3 px-4 rounded-2xl border border-amber-400 bg-white hover:bg-amber-50 text-stone-700 text-xs font-medium transition">
-                        Hỏi Thêm Cô Tư
-                    </button>
-                </div>
-            </div>
-        `;
         if (window.lucide) window.lucide.createIcons();
+
     } catch (err) {
-        resultBox.innerHTML = `
-            <div class="p-4 bg-red-50 text-red-800 rounded-2xl text-xs">
-                Không thể tải gợi ý lúc này. Vui lòng thử lại.
-            </div>
-        `;
+        console.error("Lỗi khi tạo phối đồ:", err);
+
+        // Hiển thị thông báo lỗi màu đỏ
+        if (errorMsg) {
+            errorMsg.innerText = `⚠️ ${err.message || 'Không thể tải gợi ý lúc này. Vui lòng kiểm tra lại kết nối mạng hoặc server.'}`;
+            errorMsg.classList.remove("hidden");
+        }
+
+        if (resultBox) {
+            resultBox.innerHTML = `
+                <div class="p-4 bg-red-50 text-red-800 border border-red-200 rounded-2xl text-xs font-serif-vi space-y-2">
+                    <p class="font-bold flex items-center space-x-1.5">
+                        <span>⚠️ Không thể tạo phối đồ lúc này:</span>
+                    </p>
+                    <p>${err.message || 'Đã xảy ra sự cố trong quá trình liên lạc với máy chủ. Vui lòng thử lại.'}</p>
+                    <button onclick="handleOccasionSubmit(event)" class="mt-2 px-3 py-1.5 bg-red-800 text-white rounded-xl text-xs font-sans hover:bg-red-900 transition">
+                        Thử lại
+                    </button>
+                </div>
+            `;
+        }
+    } finally {
+        // Phục hồi lại trạng thái ban đầu của nút bấm
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            if (originalBtnHtml) {
+                submitBtn.innerHTML = originalBtnHtml;
+            }
+        }
+        if (window.lucide) window.lucide.createIcons();
     }
 }
 
@@ -1544,130 +1706,20 @@ function getLocalConsultationFallback(query) {
 }
 
 
-// --- ĐOẠN CODE TÍCH HỢP TỰ ĐỘNG GỌI API TẠO ẢNH & GỢI Ý ---
+// --- LIÊN KẾT SỰ KIỆN NÚT "TẠO PHỐI ĐỒ TRỌN BỘ" ---
 document.addEventListener("DOMContentLoaded", () => {
-    // Tìm nút bấm "Tạo Phối Đồ Trọn Bộ" dựa trên class hoặc cấu trúc giao diện
-    const submitBtn = document.querySelector("button") || document.getElementById("btn-tao-phoi-do");
+    const form = document.getElementById("occasion-form");
+    const btn = document.getElementById("btn-tao-phoi-do") || document.querySelector('#occasion-form button[type="submit"]');
 
-    if (submitBtn) {
-        submitBtn.addEventListener("click", async (e) => {
-            // Ngăn chặn form load lại trang (nếu nút nằm trong form)
-            // e.preventDefault(); 
-
-            // Thu thập dữ liệu từ các ô lựa chọn trên giao diện
-            const requestData = {
-                dip: document.querySelector('select')?.value || "Tết",
-                vibe: document.querySelector('input[name="vibe"]:checked')?.value || "Thanh Lịch",
-                gioi_tinh: "Nữ Giới",
-                y_phuc: "Áo Dài"
-            };
-
-            console.log("Đang gửi yêu cầu lên Cô Tư AI...", requestData);
-
-            try {
-                // Gọi API backend FastAPI mà chúng ta vừa cấu hình
-                const response = await fetch('/api/generate-outfit-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestData)
-                });
-
-                if (!response.ok) throw new Error("Lỗi kết nối server");
-
-                const result = await response.json();
-
-                if (result.status === "success") {
-                    console.log("Nhận kết quả thành công:", result);
-
-                    // Tìm nơi trên web để hiển thị bức ảnh AI tạo ra và nhúng vào
-                    // (Bạn có thể đổi id 'image-result-container' thành class hoặc id thật trên HTML của bạn)
-                    let imgContainer = document.querySelector('#image-result-container');
-                    if (!imgContainer) {
-                        // Nếu chưa có thẻ chứa ảnh, tạo tự động một thẻ hiển thị bên dưới nút bấm
-                        imgContainer = document.createElement('div');
-                        imgContainer.id = 'image-result-container';
-                        imgContainer.style.marginTop = "20px";
-                        submitBtn.insertAdjacentElement('afterend', imgContainer);
-                    }
-
-                    // Render hình ảnh lên giao diện
-                    imgContainer.innerHTML = `
-                        <div style="background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                            <h4 style="color: #7d1214; margin-bottom: 10px;">✨ Phác Họa Y Phục Từ Cô Tư:</h4>
-                            <p><strong>Áo:</strong> ${result.outfit.ao}</p>
-                            <p><strong>Lời khuyên:</strong> ${result.message}</p>
-                            <img src="${result.image_url}" alt="AI Việt Phục" style="width:100%; border-radius:8px; margin-top: 10px;" />
-                        </div>
-                    `;
-                }
-            } catch (err) {
-                console.error("Lỗi:", err);
-                alert("Không thể tải gợi ý lúc này. Vui lòng thử lại.");
-            }
+    if (form) {
+        form.addEventListener("submit", (e) => {
+            handleOccasionSubmit(e);
         });
     }
-});
-document.addEventListener("DOMContentLoaded", () => {
-    const buttons = document.querySelectorAll("button");
-    let submitBtn = null;
 
-    buttons.forEach(btn => {
-        if (btn.innerText.includes("Tạo Phối Đồ Trọn Bộ")) {
-            submitBtn = btn;
-        }
-    });
-
-    if (submitBtn) {
-        const newBtn = submitBtn.cloneNode(true);
-        submitBtn.parentNode.replaceChild(newBtn, submitBtn);
-
-        newBtn.addEventListener("click", async (e) => {
-            e.preventDefault();
-
-            const errorMsg = document.querySelector("#error-message");
-            if (errorMsg) errorMsg.style.display = "none";
-
-            const payload = {
-                occasion: document.querySelector('select')?.value || "Tết",
-                vibe: document.querySelector('input[name="vibe"]:checked']?.value || "Thanh Lịch",
-                    gender: "Nữ Giới",
-                    dynasty: "Nguyễn"
-            };
-
-            try {
-                // Gọi API mới tự tạo, không bị lỗi 422 nữa
-                const response = await fetch('/api/custom-recommend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) throw new Error("Lỗi Server");
-
-                const result = await response.json();
-
-                let displayArea = document.querySelector('#ai-result-box');
-                if (!displayArea) {
-                    displayArea = document.createElement('div');
-                    displayArea.id = 'ai-result-box';
-                    displayArea.style.cssText = "margin-top: 20px; background: #fffdf9; padding: 20px; border-radius: 12px; border: 1px solid #e5d088;";
-                    newBtn.insertAdjacentElement('afterend', displayArea);
-                }
-
-                displayArea.innerHTML = `
-                    <h3 style="color: #7d1214; margin-bottom: 8px;">✨ Kết Quả Phối Đồ Từ Cô Tư</h3>
-                    <p><strong>Y phục:</strong> ${result.garment_name}</p>
-                    <p><strong>Đánh giá:</strong> ${result.analysis}</p>
-                    <img src="${result.image_url}" alt="AI Việt Phục" style="width:100%; border-radius:8px; margin-top:10px;" />
-                `;
-
-            } catch (err) {
-                console.error("Lỗi:", err);
-                if (errorMsg) {
-                    errorMsg.innerText = "Không thể tải gợi ý lúc này. Vui lòng thử lại.";
-                    errorMsg.style.display = "block";
-                }
-            }
+    if (btn && (!form || btn.type !== "submit")) {
+        btn.addEventListener("click", (e) => {
+            handleOccasionSubmit(e);
         });
     }
 });
