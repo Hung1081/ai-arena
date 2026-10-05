@@ -959,6 +959,21 @@ function updateRecommendationCard(look, userImageObj = null) {
 
     if (dynastyBadge) dynastyBadge.innerText = look.dynasty || "Việt Phục";
 
+    // Ảnh ảo thời trang nếu có
+    let outfitImageHtml = "";
+    if (look.image_url) {
+        outfitImageHtml = `
+            <div class="relative w-full overflow-hidden my-2" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e5d088; background: #1c1917;">
+                <img 
+                    src="${look.image_url}" 
+                    alt="${look.garment_name || 'Phác họa cổ phục'}" 
+                    style="border-radius: 12px; width: 100%; height: auto; aspect-ratio: 4/5; object-fit: cover; display: block;"
+                    loading="lazy"
+                />
+            </div>
+        `;
+    }
+
     container.innerHTML = `
         <div class="space-y-3 font-serif-vi text-xs text-stone-700">
             <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200">
@@ -966,6 +981,8 @@ function updateRecommendationCard(look, userImageObj = null) {
                 <p class="text-red-900 font-semibold">${look.garment_name}</p>
                 <span class="inline-block mt-1 text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">Vibe: ${look.vibe || 'Thanh lịch'}</span>
             </div>
+
+            ${outfitImageHtml}
 
             <div>
                 <span class="font-sans text-[10px] uppercase tracking-wider font-semibold text-stone-500 block mb-1">Hòa Sắc Tranh Dân Gian:</span>
@@ -1145,19 +1162,27 @@ async function handleOccasionSubmit(e) {
             throw new Error(data.message || "Không thể tạo gợi ý và hình ảnh y phục lúc này.");
         }
 
+        // Lấy dữ liệu trả về từ API (hỗ trợ linh hoạt cả /api/recommend và /api/generate-outfit-image)
+        const imageUrl = data.image_url || data.look_card?.image_url;
+        const garmentName = data.garment_name || data.outfit?.ao || data.look_card?.garment_name || "Áo Cổ Phục Việt Nam";
+        const quanVay = data.outfit?.quan_vay || data.look_card?.bottom || "Quần lụa ống rộng mềm mại";
+        const phuKien = data.outfit?.phu_kien || (data.look_card ? `${data.look_card.shoes || ''}, ${data.look_card.headdress || ''}, ${data.look_card.jewelry || ''}`.replace(/^, |, $/g, '') : "Khăn đóng, guốc mộc và kiềng bạc");
+        const advice = data.message || data.analysis || data.look_card?.etiquette_tip || "Phong thái đoan trang, khoan thai làm nên cốt cách người Việt.";
+
         // Lưu dữ liệu vào biến toàn cục để có thể tích hợp với Studio Mix Đồ
         currentLookRecommendation = {
             title: `Tạo Hình Y Phục Dịp ${occasionText.split('(')[0].trim()}`,
-            garment_name: data.outfit?.ao || "Cổ Phục Việt Nam",
-            shirt_color: "Sắc màu cổ phong",
-            bottom: data.outfit?.quan_vay || "Quần lụa truyền thống",
+            garment_name: garmentName,
+            shirt_color: data.outfit?.ao || "Sắc màu cổ phong",
+            bottom: quanVay,
             fabric: "Lụa tơ tằm & Gấm hoa",
             shoes: data.outfit?.phu_kien || "Guốc mộc",
             bag: "Túi gấm thêu tay",
             headdress: "Khăn đóng / Khăn vành",
             jewelry: "Kiềng bạc chạm sen",
             hairstyle: "Tóc búi cài trâm",
-            etiquette_tip: data.message,
+            etiquette_tip: advice,
+            image_url: imageUrl,
             palette: ["#9E1A1A", "#D4AF37", "#1A5336", "#FAF6EE"],
             palette_names: ["Đỏ Son", "Hoàng Kim", "Xanh Ngọc", "Nền Kem"]
         };
@@ -1166,11 +1191,11 @@ async function handleOccasionSubmit(e) {
         if (resultBox) {
             resultBox.innerHTML = `
                 <div class="lacquer-card p-6 lg:p-8 bg-gradient-to-br from-amber-50/95 via-orange-50/30 to-amber-100/50 border border-amber-300 space-y-6 rounded-3xl shadow-lg">
-                    <!-- Header -->
+                    <!-- Header: Công Thức Phối Đồ / Vibe -->
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-amber-200/80 pb-4 gap-2">
                         <div>
                             <div class="flex items-center space-x-2 mb-1">
-                                <span class="red-seal text-[11px]">✨ Phác Họa Từ Cô Tư AI</span>
+                                <span class="red-seal text-[11px]">Công Thức Phối Đồ</span>
                                 <span class="text-xs font-semibold text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full">
                                     Vibe: ${vibeLabel}
                                 </span>
@@ -1184,31 +1209,37 @@ async function handleOccasionSubmit(e) {
                         </span>
                     </div>
 
-                    <!-- Main Content Grid: Image + Details -->
+                    <!-- Main Content Grid: Image (5 cols) + Styling Details (7 cols) -->
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                        <!-- AI Generated Image Showcase -->
+                        <!-- AI Generated Image Showcase with Luxury Styling -->
                         <div class="lg:col-span-5 space-y-3">
-                            <div class="relative group overflow-hidden rounded-2xl border-2 border-amber-300 shadow-md bg-stone-900 aspect-square flex items-center justify-center">
-                                <!-- Image with smooth load transition -->
+                            <div class="relative w-full overflow-hidden" style="border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border: 1px solid #e5d088; background: #1c1917;">
+                                <!-- Loading State Shimmer for Image Loading -->
+                                <div id="ai-img-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-stone-900/95 text-amber-200 p-4 text-center z-10 transition-opacity duration-500">
+                                    <div class="w-10 h-10 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                    <p class="text-xs font-serif-vi font-semibold text-amber-200">✨ Cô Tư đang phác họa y phục...</p>
+                                    <span class="text-[10px] text-stone-400 mt-1">Độ phân giải 800x1000 sắc nét</span>
+                                </div>
+
+                                <!-- Image Element with Smooth Load Transition -->
                                 <img 
                                     id="outfit-ai-image"
-                                    src="${data.image_url}" 
-                                    alt="Phác Họa Cổ Phục Việt Nam AI" 
-                                    class="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+                                    src="${imageUrl}" 
+                                    alt="${garmentName}" 
+                                    style="border-radius: 12px; width: 100%; height: auto; aspect-ratio: 4/5; object-fit: cover; display: block; opacity: 0; transition: opacity 0.6s ease-in-out;"
                                     loading="lazy"
-                                    onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800&auto=format&fit=crop';"
+                                    onload="this.style.opacity='1'; const loader = document.getElementById('ai-img-loading'); if(loader){ loader.style.opacity='0'; setTimeout(()=>loader.remove(), 400); }"
+                                    onerror="const loader = document.getElementById('ai-img-loading'); if(loader) loader.remove(); this.style.opacity='1'; this.onerror=null; this.src='https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800&auto=format&fit=crop';"
                                 />
-                                <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-4">
-                                    <p class="text-xs text-amber-200 font-serif-vi">Bức họa phục dựng trang phục truyền thống Việt Nam</p>
-                                </div>
                             </div>
 
+                            <!-- Image Footer Links -->
                             <div class="flex items-center justify-between text-xs text-stone-500 font-serif-vi px-1">
                                 <span class="flex items-center space-x-1">
                                     <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-600"></i>
-                                    <span>Họa ảnh: AI Vision Studio</span>
+                                    <span>Họa ảnh AI 8k · Pollinations</span>
                                 </span>
-                                <a href="${data.image_url}" target="_blank" rel="noopener noreferrer" class="text-red-800 hover:text-red-900 font-semibold underline flex items-center space-x-1">
+                                <a href="${imageUrl}" target="_blank" rel="noopener noreferrer" class="text-red-800 hover:text-red-900 font-semibold underline flex items-center space-x-1">
                                     <span>Mở ảnh lớn / Tải về</span>
                                     <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                                 </a>
@@ -1224,7 +1255,7 @@ async function handleOccasionSubmit(e) {
                                         <i data-lucide="shirt" class="w-4 h-4 text-red-800"></i>
                                         <span>Y Phục Chủ Đạo (Áo)</span>
                                     </div>
-                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${data.outfit?.ao || 'Áo Dài Truyền Thống'}</p>
+                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed font-semibold">${garmentName}</p>
                                 </div>
 
                                 <div class="p-3.5 bg-white/90 rounded-2xl border border-amber-200 shadow-2xs">
@@ -1232,7 +1263,7 @@ async function handleOccasionSubmit(e) {
                                         <i data-lucide="scissors" class="w-4 h-4 text-amber-800"></i>
                                         <span>Quần / Váy Phối Cùng</span>
                                     </div>
-                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${data.outfit?.quan_vay || 'Quần lụa ống rộng mềm mại'}</p>
+                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${quanVay}</p>
                                 </div>
 
                                 <div class="p-3.5 bg-white/90 rounded-2xl border border-amber-200 shadow-2xs">
@@ -1240,7 +1271,7 @@ async function handleOccasionSubmit(e) {
                                         <i data-lucide="gem" class="w-4 h-4 text-stone-700"></i>
                                         <span>Trọn Bộ Phụ Kiện Đi Kèm</span>
                                     </div>
-                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${data.outfit?.phu_kien || 'Khăn đóng, guốc mộc và kiềng bạc'}</p>
+                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${phuKien}</p>
                                 </div>
                             </div>
 
@@ -1250,7 +1281,7 @@ async function handleOccasionSubmit(e) {
                                     <i data-lucide="feather" class="w-4 h-4"></i>
                                     <span>Lời Khuyên Từ Cô Tư AI:</span>
                                 </div>
-                                <p class="italic leading-relaxed">"${data.message}"</p>
+                                <p class="italic leading-relaxed">"${advice}"</p>
                             </div>
 
                             <!-- Action Buttons -->
@@ -1259,7 +1290,7 @@ async function handleOccasionSubmit(e) {
                                     <i data-lucide="palette" class="w-4 h-4"></i>
                                     <span>Mặc Thử Trong Studio Mix Đồ</span>
                                 </button>
-                                <button onclick="switchTab('chat'); sendQuickPrompt('Cô Tư ơi, hãy tư vấn thêm về cách chọn phụ kiện cho tạo hình: ${data.outfit?.ao ? data.outfit.ao.slice(0, 40) : 'Cổ phục'} này nhé!');" class="w-full sm:w-auto py-3 px-4 rounded-2xl border border-amber-400 bg-white hover:bg-amber-50 text-stone-700 text-xs font-semibold transition flex items-center justify-center space-x-1.5">
+                                <button onclick="switchTab('chat'); sendQuickPrompt('Cô Tư ơi, hãy tư vấn thêm về cách chọn phụ kiện cho tạo hình: ${garmentName.slice(0, 40)} này nhé!');" class="w-full sm:w-auto py-3 px-4 rounded-2xl border border-amber-400 bg-white hover:bg-amber-50 text-stone-700 text-xs font-semibold transition flex items-center justify-center space-x-1.5">
                                     <i data-lucide="message-square" class="w-4 h-4 text-amber-700"></i>
                                     <span>Hỏi Thêm Cô Tư</span>
                                 </button>

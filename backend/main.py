@@ -361,13 +361,131 @@ def virtual_try_on(req: TryOnRequest):
         "analysis": analysis
     }
 
+def generate_english_image_prompt(
+    look: Dict[str, Any],
+    gender: str = "nu",
+    occasion: str = "tet",
+    vibe: str = "thanh_lich"
+) -> str:
+    """
+    Tự động tổng hợp các thuộc tính thành câu lệnh tạo ảnh tiếng Anh (English Image Prompt)
+    thật chi tiết và chất lượng cao theo đúng yêu cầu:
+    A photorealistic 8k cinematic portrait of a Vietnamese model wearing traditional [tên áo dài/ngũ thân],
+    color scheme [màu sắc], style [vibe], traditional Vietnamese background, highly detailed, masterclass photography, beautiful lighting.
+    """
+    is_male = "nam" in gender.lower() or gender == "male"
+    model_str = "Vietnamese handsome male model" if is_male else "Vietnamese beautiful elegant female model"
+
+    garment_name = look.get("garment_name", "Áo Dài Việt Nam")
+    garment_id = look.get("garment_id", "")
+
+    garment_en_map = {
+        "ao_dai": "traditional Vietnamese Ao Dai silk dress",
+        "ngu_than": "traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac)",
+        "tu_than": "traditional Vietnamese Tu Than folk costume with pink silk Yem bib and flowing outer robes",
+        "nhat_binh": "traditional Vietnamese royal Nhat Binh robe with ornate rectangular embroidered collar",
+        "ao_ba_ba": "traditional southern Vietnamese Ao Ba Ba silk blouse",
+        "trang_phuc_dan_toc": "traditional Vietnamese ethnic minority brocade attire with vibrant handwoven patterns"
+    }
+
+    garment_en = garment_en_map.get(garment_id)
+    if not garment_en:
+        g_low = garment_name.lower()
+        if "nhật bình" in g_low:
+            garment_en = "traditional Vietnamese royal Nhat Binh robe"
+        elif "ngũ thân" in g_low or "áo tấc" in g_low:
+            garment_en = "traditional Vietnamese Ngu Than dynastic royal robe"
+        elif "tứ thân" in g_low or "yếm" in g_low:
+            garment_en = "traditional Vietnamese Tu Than folk costume"
+        elif "bà ba" in g_low:
+            garment_en = "traditional southern Vietnamese Ao Ba Ba silk blouse"
+        elif "thổ cẩm" in g_low or "dân tộc" in g_low:
+            garment_en = "traditional Vietnamese ethnic minority brocade attire"
+        else:
+            garment_en = "traditional Vietnamese Ao Dai silk dress"
+
+    # Color scheme
+    colors = []
+    if look.get("shirt_color"):
+        colors.append(look.get("shirt_color"))
+    if look.get("palette_names"):
+        colors.extend(look.get("palette_names")[:2])
+    color_scheme = ", ".join(colors) if colors else "vermilion red, imperial gold and jade green"
+
+    # Vibe style
+    vibe_map = {
+        "thanh_lich": "elegant, graceful and poetic",
+        "co_dien": "vintage, classical dynastic royal heritage",
+        "toi_gian": "minimalist, neat and pure simplicity",
+        "ca_tinh": "bold, unique avant-garde cultural fusion",
+        "nu_tinh": "gentle, soft, graceful and feminine"
+    }
+    vibe_style = vibe_map.get(vibe.lower(), vibe)
+
+    # Background setting based on occasion
+    bg_map = {
+        "tet": "festive Vietnamese Tet Spring atmosphere with blooming peach blossoms and ancient wooden architecture",
+        "le_chua": "serene ancient Vietnamese Buddhist pagoda courtyard with incense mist and lotus pond",
+        "cuoi_hoi": "luxurious traditional Vietnamese royal wedding ceremony pavilion with lanterns and floral decor",
+        "le_hoi": "vibrant traditional Vietnamese folk festival courtyard with ancient brick walls",
+        "chup_anh": "cinematic courtyard of Hue Imperial Citadel or Hoi An ancient lantern town",
+        "truong_hoc": "vintage Indochine architecture campus with sunlit corridor",
+        "hang_ngay": "contemporary aesthetic Vietnamese tea house with vintage wooden interior"
+    }
+    bg_desc = bg_map.get(occasion.lower(), "traditional Vietnamese architectural background")
+
+    # Prompt format
+    prompt = (
+        f"A photorealistic 8k cinematic portrait of a {model_str} wearing {garment_en}, "
+        f"color scheme {color_scheme}, style {vibe_style}, {bg_desc}, "
+        f"highly detailed, masterclass photography, beautiful lighting, sharp focus."
+    )
+    return prompt
+
+def generate_pollinations_url(prompt: str) -> str:
+    """Tạo link ảnh tự động qua Pollinations.ai API chuẩn tỷ lệ 800x1000."""
+    encoded_prompt = urllib.parse.quote(prompt)
+    seed = random.randint(100000, 999999)
+    return f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=800&height=1000&nologo=true&seed={seed}"
+
 @app.post("/api/recommend")
 def recommend_outfit(req: RecommendRequest):
+    """
+    Gợi ý công thức phối đồ theo Dịp & Vibe + Tự động sinh ảnh ảo hoàn chỉnh qua Pollinations.ai.
+    """
     result = engine.generate_styling_consultation(
         query=f"Dịp: {req.occasion}, Giới tính: {req.gender}, Phong cách: {req.vibe or 'truyền thống'}",
         user_gender=req.gender,
         occasion=req.occasion
     )
+
+    look = result.get("look_card", {})
+    gender = req.gender or "nu"
+    occasion = req.occasion or "tet"
+    vibe = req.vibe or look.get("vibe", "thanh_lich")
+
+    # 1. Tổng hợp English Image Prompt chất lượng cao
+    english_prompt = generate_english_image_prompt(look, gender=gender, occasion=occasion, vibe=vibe)
+
+    # 2. Sinh image_url tự động qua Pollinations.ai
+    image_url = generate_pollinations_url(english_prompt)
+
+    # 3. Đưa image_url và các trường tương ứng vào đối tượng JSON trả về
+    result["status"] = "success"
+    result["image_url"] = image_url
+    result["english_prompt"] = english_prompt
+    result["garment_name"] = look.get("garment_name")
+    result["analysis"] = result.get("stylist_response") or look.get("etiquette_tip")
+    result["outfit"] = {
+        "ao": look.get("shirt_color") or look.get("garment_name"),
+        "quan_vay": look.get("bottom", "Quần lụa ống rộng"),
+        "phu_kien": f"{look.get('shoes', '')}, {look.get('headdress', '')}, {look.get('jewelry', '')}".strip(", ")
+    }
+
+    if "look_card" in result and isinstance(result["look_card"], dict):
+        result["look_card"]["image_url"] = image_url
+        result["look_card"]["english_prompt"] = english_prompt
+
     return result
 
 # --- CORE FEATURE: Gợi Ý Theo Dịp & Vibe + Sinh Ảnh AI ---
@@ -443,17 +561,23 @@ async def generate_outfit_and_image(req: OutfitImageRequest):
             if not image_prompt:
                 image_prompt = fallback["image_prompt"]
 
-        # Generate Pollinations.ai image URL
+        # Generate Pollinations.ai image URL chuẩn 800x1000
         encoded_prompt = urllib.parse.quote(image_prompt)
         seed = random.randint(100000, 999999)
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={seed}"
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=800&height=1000&nologo=true&seed={seed}"
+
+        ao_val = ai_outfit.get("ao", "Áo Cổ Phục Truyền Thống Việt Nam")
+        quan_vay_val = ai_outfit.get("quan_vay", "Quần lụa trắng Bạch Hạc ống rộng")
+        phu_kien_val = ai_outfit.get("phu_kien", "Khăn đóng/khăn vành, guốc mộc và kiềng bạc chạm sen")
 
         return {
             "status": "success",
+            "garment_name": ao_val,
+            "analysis": ai_message,
             "outfit": {
-                "ao": ai_outfit.get("ao", "Áo Cổ Phục Truyền Thống Việt Nam"),
-                "quan_vay": ai_outfit.get("quan_vay", "Quần lụa trắng Bạch Hạc ống rộng"),
-                "phu_kien": ai_outfit.get("phu_kien", "Khăn đóng/khăn vành, guốc mộc và kiềng bạc chạm sen")
+                "ao": ao_val,
+                "quan_vay": quan_vay_val,
+                "phu_kien": phu_kien_val
             },
             "message": ai_message,
             "image_url": image_url
