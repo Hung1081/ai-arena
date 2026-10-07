@@ -41,12 +41,13 @@ export class TraditionalVisualizer3D {
 
         this.scene = new THREE.Scene();
         this.scene.background = null;
-        // fov=42: góc nhìn đủ rộng để thấy toàn thân trên mọi kích cỡ màn hình.
-        // near=0.1/far=1000: tránh clipping khi zoom vào rất gần hoặc model lớn.
-        // Aspect=1 được cập nhật ngay khi resize() gọi lần đầu.
-        this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 1000);
-        // Vị trí khởi tạo — sẽ được đặt lại chính xác bằng fitCameraToModel() sau khi model load
-        this.camera.position.set(0, 1.7, 5.5);
+        // fov=50: góc nhìn rộng hơn để thấy toàn thân trên mọi kích cỡ canvas.
+        // GLB rotation.y = -PI/2 → model mặt hướng -Z → camera phải ở -Z.
+        this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+        // Camera ở -Z nhìn vào mặt trước model (model mặt hướng -Z)
+        // Sẽ được đặt lại chính xác bằng fitCameraToModel() sau khi GLB load
+        this.camera.position.set(0, 1.7, -6.5);
+        this.camera.lookAt(0, 1.7, 0);  // nhìn vào tâm model
 
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -67,8 +68,8 @@ export class TraditionalVisualizer3D {
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.075;
         this.controls.enablePan = false;
-        this.controls.minDistance = 2.8;
-        this.controls.maxDistance = 7.2;
+        this.controls.minDistance = 1.5;
+        this.controls.maxDistance = 20;
         this.controls.minPolarAngle = 0.12;
         // Không cho camera chui xuống dưới gấu áo như nhìn từ dưới sàn;
         // vẫn đủ góc thấp để xem quần, chân và giày.
@@ -642,52 +643,57 @@ export class TraditionalVisualizer3D {
     }
 
     /**
-     * Tự động đặt camera và controls.target để khung hình ôm trọn toàn bộ model.
-     * Gọi updateMatrixWorld() TRƯỚC khi đo Box3 — đảm bảo bounds chính xác.
+     * Tự động căn chỉnh camera để khung hình thấy toàn bộ người mẫu 3D.
      *
-     * @param {THREE.Object3D} [model] - Model cần fit (mặc định: this.modelRoot).
+     * LƯU Ý KIẾN TRÚC:
+     * - GLB body có rotation.y = -PI/2 → model mặt hướng -Z
+     * - Camera phải đặt ở -Z (âm) để nhìn VÀO MẶT model, không phải lưng
+     * - Chiều cao cố định 3.35 units (được set trong loadRealisticBody)
      */
     fitCameraToModel(model = this.modelRoot) {
-        // BẮT BUỘC: cập nhật matrix toàn bộ cây scene trước khi đo Box3
-        // Nếu bỏ bước này, Box3 trả về bounds cũ → camera tính sai → model bị cắt
+        // Cập nhật matrix để Box3 đo đúng
         model.updateMatrixWorld(true);
 
-        // 1. Tính bounding box thực tế của model (sau scale, position, rotation)
+        // Đo bounding box thực tế
         const box = new THREE.Box3().setFromObject(model);
-
-        // Fallback khi model chưa load (box rỗng)
         if (box.isEmpty()) {
-            box.set(
-                new THREE.Vector3(-0.4, 0, -0.4),
-                new THREE.Vector3( 0.4, 3.35, 0.4)
-            );
+            box.set(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 3.35, 0.5));
         }
 
         const center = box.getCenter(new THREE.Vector3());
         const size   = box.getSize(new THREE.Vector3());
+        const modelH = size.y; // chiều cao thực tế của model (thường ~3.35)
 
-        // 2. Đặt tâm xoay OrbitControls vào đúng giữa model
+        // Target = tâm model (giữa chiều cao)
         this.controls.target.copy(center);
 
-        // 3. Tính khoảng cách camera — factor 2.0 để thấy toàn thân kể cả phụ kiện cao
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const fov    = this.camera.fov * (Math.PI / 180);
-        let cameraDist = (maxDim / (2 * Math.tan(fov / 2))) * 2.0;
+        // Cập nhật aspect từ container thực tế TRƯỚC khi tính distance
+        const contW = Math.max(this.container.clientWidth  || 300, 120);
+        const contH = Math.max(this.container.clientHeight || 400, 120);
+        this.camera.aspect = contW / contH;
 
-        // Kiểm tra thêm chiều ngang nếu container landscape
-        const aspect = this.camera.aspect || 1;
-        if (aspect > 1) {
-            const hFov  = 2 * Math.atan(Math.tan(fov / 2) * aspect);
-            const distW = (size.x / 2) / Math.tan(hFov / 2) * 2.0;
-            cameraDist  = Math.max(cameraDist, distW);
+        // Tính distance để thấy toàn bộ chiều cao model + 30% viền bảo vệ
+        // Dùng vertical FOV vì chiều cao là dimension quan trọng nhất
+        const fovRad = this.camera.fov * (Math.PI / 180);
+        const halfH  = (modelH / 2) * 1.3; // +30% viền
+        let cameraDist = halfH / Math.tan(fovRad / 2);
+
+        // Nếu container portrait (contH > contW), camera cần lùi thêm
+        // để chiều ngang cũng đủ thấy model
+        if (contW < contH) {
+            const widthFactor = contH / contW; // ví dụ 400/300 = 1.33
+            cameraDist = Math.max(cameraDist, cameraDist * widthFactor * 0.7);
         }
 
-        this.camera.position.set(center.x, center.y, center.z + cameraDist);
-        this.camera.near = maxDim / 100;
-        this.camera.far  = maxDim * 100;
+        // GLB rotation.y = -PI/2 → model mặt hướng -Z
+        // → Camera ở -Z nhìn vào mặt, camera ở +Z nhìn vào lưng
+        // Đặt camera ở -Z (trước mặt model)
+        this.camera.position.set(center.x, center.y, center.z - cameraDist);
+
+        this.camera.near = Math.max(0.01, cameraDist * 0.01);
+        this.camera.far  = Math.max(100, cameraDist * 20);
         this.camera.updateProjectionMatrix();
 
-        // Cập nhật giới hạn zoom
         this.controls.minDistance = Math.max(0.5, cameraDist * 0.15);
         this.controls.maxDistance = cameraDist * 3.0;
         this.controls.update();
