@@ -422,10 +422,11 @@ h1, h2, h3, .font-imperial {
 /* Kéo-thả ảnh vào khung chat (bổ sung: dán/kéo thả ảnh) */
 /* ============================================================= */
 .chat-drop-active {
-    outline: 2px dashed #D4AF37;
-    outline-offset: -4px;
-    background-color: rgba(212, 175, 55, 0.08);
-    transition: background-color 0.15s ease;
+    outline: 2px dashed #b45309 !important;
+    outline-offset: -4px !important;
+    background-color: rgba(254, 243, 199, 0.45) !important;
+    box-shadow: inset 0 0 16px rgba(212, 175, 55, 0.25) !important;
+    transition: all 0.2s ease;
 }
 
 /* ============================================================= */
@@ -452,6 +453,7 @@ h1, h2, h3, .font-imperial {
     min-height: 480px;
     border-radius: 22px;
     overflow: hidden;
+    position: relative;
     background:
         radial-gradient(circle at 50% 38%, rgba(255, 253, 244, 0.96) 0 30%, rgba(250, 241, 216, 0.72) 68%, rgba(238, 219, 177, 0.42) 100%);
     cursor: grab;
@@ -462,10 +464,11 @@ h1, h2, h3, .font-imperial {
     cursor: grabbing;
 }
 
+#avatar-stage-3d canvas,
 .studio-3d-canvas {
     display: block;
-    width: 100%;
-    height: 100%;
+    width: 100% !important;
+    height: 100% !important;
     outline: none;
 }
 

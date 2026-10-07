@@ -434,7 +434,12 @@ function toggle3DAutoRotate(enabled) {
     if (visualizer3D) visualizer3D.setAutoRotate(enabled);
 }
 
+let isAppInitialized = false;
+
 function initApp() {
+    if (isAppInitialized) return;
+    isAppInitialized = true;
+
     // 0. Trigger Royal Intro Transition Plaque
     initIntroSplash();
 
@@ -451,19 +456,25 @@ function initApp() {
         window.lucide.createIcons();
     }
 
-    // 4. Auto focus chat input
+    // 4. Chat input handling: ensure exactly one event handler without duplicates
     const chatInput = document.getElementById("chat-input");
     if (chatInput) {
-        chatInput.addEventListener("keydown", (e) => {
+        chatInput.onkeydown = (e) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleChatSubmit(e);
             }
-        });
+        };
     }
 
-    // 5. Cho phép dán (Ctrl+V) và kéo-thả ảnh vào khung chat, không chỉ
-    //    bấm nút chọn tệp như trước.
+    const chatForm = document.getElementById("chat-form");
+    if (chatForm) {
+        chatForm.onsubmit = (e) => {
+            handleChatSubmit(e);
+        };
+    }
+
+    // 5. Cho phép dán (Ctrl+V) và kéo-thả ảnh vào khung chat
     initPasteImageSupport();
     initDragDropImageSupport();
 }
@@ -849,8 +860,8 @@ function handleImageSelected(e) {
  * dán và kéo-thả hoàn toàn không hoạt động dù người dùng có thử.
  */
 function xuLyFileAnhDaChon(file) {
-    if (!file.type || !file.type.startsWith("image/")) {
-        alert("Vui lòng chọn một tệp hình ảnh hợp lệ (PNG, JPG, WEBP).");
+    if (!file || !file.type || !file.type.startsWith("image/")) {
+        alert("Vui lòng chọn hoặc kéo-thả tệp hình ảnh hợp lệ (PNG, JPG, WEBP).");
         return;
     }
 
@@ -861,7 +872,7 @@ function xuLyFileAnhDaChon(file) {
             file: file,
             base64: base64Str,
             mimeType: file.type || "image/jpeg",
-            name: file.name
+            name: file.name || "anh-tai-len.jpg"
         };
 
         const previewContainer = document.getElementById("chat-image-preview-container");
@@ -870,10 +881,13 @@ function xuLyFileAnhDaChon(file) {
 
         if (previewContainer && previewImg && nameEl) {
             previewImg.src = base64Str;
-            nameEl.textContent = file.name;
+            nameEl.textContent = file.name || "anh-tai-len.jpg";
             previewContainer.classList.remove("hidden");
         }
         if (window.lucide) window.lucide.createIcons();
+
+        const input = document.getElementById("chat-input");
+        if (input) input.focus();
     };
     reader.readAsDataURL(file);
 }
@@ -904,28 +918,79 @@ function initPasteImageSupport() {
 }
 
 /**
- * Kéo-thả ảnh trực tiếp vào khu vực chat. Gắn trên cả khung chứa tin nhắn
- * lẫn vùng nhập liệu để người dùng thả ở đâu trong khung chat cũng được.
+ * Kéo-thả ảnh trực tiếp vào khu vực chat.
+ * Hỗ trợ kéo thả trên toàn bộ vùng tin nhắn và vùng nhập liệu.
  */
 function initDragDropImageSupport() {
     const dropZones = [
         document.getElementById("chat-messages"),
-        document.getElementById("chat-form")
+        document.getElementById("chat-form"),
+        document.getElementById("chat-input"),
+        document.getElementById("chat-image-preview-container")?.parentElement
     ].filter(Boolean);
 
+    const chatColumn = document.getElementById("chat-messages")?.parentElement;
+    if (chatColumn && !dropZones.includes(chatColumn)) {
+        dropZones.push(chatColumn);
+    }
+
     dropZones.forEach((zone) => {
-        zone.addEventListener("dragover", (e) => {
+        let dragCounter = 0;
+
+        zone.addEventListener("dragenter", (e) => {
             e.preventDefault();
+            e.stopPropagation();
+            dragCounter++;
             zone.classList.add("chat-drop-active");
         });
-        zone.addEventListener("dragleave", () => {
-            zone.classList.remove("chat-drop-active");
+
+        zone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer) {
+                e.dataTransfer.dropEffect = "copy";
+            }
+            zone.classList.add("chat-drop-active");
         });
+
+        zone.addEventListener("dragleave", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter--;
+            if (dragCounter <= 0) {
+                dragCounter = 0;
+                zone.classList.remove("chat-drop-active");
+            }
+        });
+
         zone.addEventListener("drop", (e) => {
             e.preventDefault();
+            e.stopPropagation();
+            dragCounter = 0;
             zone.classList.remove("chat-drop-active");
-            const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-            if (file) xuLyFileAnhDaChon(file);
+
+            const dt = e.dataTransfer;
+            if (!dt) return;
+
+            let file = null;
+            if (dt.files && dt.files.length > 0) {
+                file = dt.files[0];
+            } else if (dt.items && dt.items.length > 0) {
+                for (let i = 0; i < dt.items.length; i++) {
+                    if (dt.items[i].kind === "file") {
+                        file = dt.items[i].getAsFile();
+                        break;
+                    }
+                }
+            }
+
+            if (file) {
+                if (file.type && file.type.startsWith("image/")) {
+                    xuLyFileAnhDaChon(file);
+                } else {
+                    alert("Vui lòng kéo-thả tệp hình ảnh hợp lệ (PNG, JPG, WEBP).");
+                }
+            }
         });
     });
 }
@@ -951,33 +1016,37 @@ function applyLookToStudioSilently(look) {
     }
 
     if (look.headdress) {
-        if (look.headdress.includes("vành")) studioState.headdress = "khan_vanh";
-        else if (look.headdress.includes("đóng") || look.headdress.includes("xếp")) studioState.headdress = "khan_dong";
-        else if (look.headdress.includes("rằn")) studioState.headdress = "khan_ran";
-        else if (look.headdress.includes("quai thao") || look.headdress.includes("ba tầm")) studioState.headdress = "non_quai_thao";
-        else if (look.headdress.includes("quạ")) studioState.headdress = "khan_mo_qua";
-        else if (look.headdress.includes("lá")) studioState.headdress = "non_la";
+        const h = String(look.headdress || "").toLowerCase();
+        if (h.includes("vành")) studioState.headdress = "khan_vanh";
+        else if (h.includes("đóng") || h.includes("xếp")) studioState.headdress = "khan_dong";
+        else if (h.includes("rằn")) studioState.headdress = "khan_ran";
+        else if (h.includes("quai thao") || h.includes("ba tầm")) studioState.headdress = "non_quai_thao";
+        else if (h.includes("quạ")) studioState.headdress = "khan_mo_qua";
+        else if (h.includes("lá")) studioState.headdress = "non_la";
         else studioState.headdress = "natural";
     }
 
     if (look.bottom) {
-        if (look.bottom.includes("thổ cẩm")) studioState.bottomType = "skirt_ethnic";
-        else if (look.bottom.includes("váy đụp") || look.bottom.includes("váy")) studioState.bottomType = "skirt_black";
-        else if (look.bottom.includes("đen")) studioState.bottomType = "pants_black";
+        const b = String(look.bottom || "").toLowerCase();
+        if (b.includes("thổ cẩm")) studioState.bottomType = "skirt_ethnic";
+        else if (b.includes("váy đụp") || b.includes("váy")) studioState.bottomType = "skirt_black";
+        else if (b.includes("đen")) studioState.bottomType = "pants_black";
         else studioState.bottomType = "pants_white";
     }
 
     if (look.shoes) {
-        if (look.shoes.includes("guốc")) studioState.shoes = "guoc_moc";
-        else if (look.shoes.includes("hài")) studioState.shoes = "hai_theu";
-        else if (look.shoes.includes("da") || look.shoes.includes("oxford")) studioState.shoes = "giay_da";
-        else if (look.shoes.includes("cói")) studioState.shoes = "dep_coi";
+        const s = String(look.shoes || "").toLowerCase();
+        if (s.includes("guốc")) studioState.shoes = "guoc_moc";
+        else if (s.includes("hài")) studioState.shoes = "hai_theu";
+        else if (s.includes("da") || s.includes("oxford")) studioState.shoes = "giay_da";
+        else if (s.includes("cói")) studioState.shoes = "dep_coi";
     }
 
     if (look.bag) {
-        if (look.bag.includes("cói")) studioState.bag = "tui_coi";
-        else if (look.bag.includes("mây")) studioState.bag = "tui_may";
-        else if (look.bag.includes("thổ cẩm")) studioState.bag = "tui_tho_cam";
+        const bg = String(look.bag || "").toLowerCase();
+        if (bg.includes("cói")) studioState.bag = "tui_coi";
+        else if (bg.includes("mây")) studioState.bag = "tui_may";
+        else if (bg.includes("thổ cẩm")) studioState.bag = "tui_tho_cam";
         else studioState.bag = "none";
         const bagSelect = document.getElementById("bag-select");
         if (bagSelect) bagSelect.value = studioState.bag;
@@ -993,14 +1062,28 @@ function applyLookToStudioSilently(look) {
 /**
  * AI Stylist Chat Handling
  */
+let isChatSubmitting = false;
+
 async function handleChatSubmit(e) {
-    if (e) e.preventDefault();
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    if (isChatSubmitting) return;
+
     const input = document.getElementById("chat-input");
-    const query = input.value.trim();
+    const query = input ? input.value.trim() : "";
     if (!query && !currentUploadedImage) return;
 
+    isChatSubmitting = true;
+    const submitBtn = document.getElementById("chat-submit-btn");
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add("opacity-50", "cursor-not-allowed");
+    }
+
     const currentQuery = query || "Hãy nhận xét gương mặt/vóc dáng của tôi và tư vấn bộ cổ phục truyền thống tôn dáng nhất!";
-    input.value = "";
+    if (input) input.value = "";
 
     // Retain uploaded image reference for sending, then clear input UI
     const sentImage = currentUploadedImage ? { ...currentUploadedImage } : null;
@@ -1012,6 +1095,7 @@ async function handleChatSubmit(e) {
     appendUserMessage(currentQuery, sentImage);
 
     const typingBubble = appendTypingIndicator();
+    let responseAppended = false;
 
     try {
         const apiKey = localStorage.getItem("gemini_api_key") || localStorage.getItem("CO_TU_GEMINI_KEY") || "";
@@ -1073,7 +1157,9 @@ async function handleChatSubmit(e) {
             data = await res.json();
         }
 
-        typingBubble.remove();
+        if (typingBubble && typingBubble.parentNode) {
+            typingBubble.remove();
+        }
 
         // Xử lý dữ liệu trả về từ Gemini API
         let stylistResponseText = "";
@@ -1183,22 +1269,48 @@ ${(photoTips.poses || ['Hai tay đan nhẹ trước bụng theo thế vái lạy
 
         // Hiển thị tin nhắn của Cô Tư trong khung chat
         appendStylistResponse(stylistResponseText, sentImage, lookCard);
+        responseAppended = true;
 
-        // Đồng bộ dữ liệu lên thẻ "Tạo Hình Gợi Ý" và "Phòng Mix Đồ"
+        // Đồng bộ dữ liệu lên thẻ "Tạo Hình Gợi Ý" và "Phòng Mix Đồ" (được bọc an toàn)
         if (lookCard) {
-            updateRecommendationCard(lookCard, sentImage);
-            applyLookToStudioSilently(lookCard);
+            try {
+                updateRecommendationCard(lookCard, sentImage);
+                applyLookToStudioSilently(lookCard);
+            } catch (syncErr) {
+                console.warn("[Studio Sync Warning]:", syncErr);
+            }
         }
 
     } catch (err) {
-        typingBubble.remove();
-        console.error("Lỗi khi trò chuyện cùng Cô Tư:", err);
-        const fallback = getLocalConsultationFallback(currentQuery);
-        appendStylistResponse(fallback.text, sentImage, fallback.look_card);
-        if (fallback.look_card) {
-            updateRecommendationCard(fallback.look_card, sentImage);
-            applyLookToStudioSilently(fallback.look_card);
+        if (typingBubble && typingBubble.parentNode) {
+            typingBubble.remove();
         }
+        console.error("Lỗi khi trò chuyện cùng Cô Tư:", err);
+
+        // Chỉ hiển thị fallback nếu chưa có phản hồi nào được append
+        if (!responseAppended) {
+            const fallback = getLocalConsultationFallback(currentQuery);
+            appendStylistResponse(fallback.text, sentImage, fallback.look_card);
+            responseAppended = true;
+            if (fallback.look_card) {
+                try {
+                    updateRecommendationCard(fallback.look_card, sentImage);
+                    applyLookToStudioSilently(fallback.look_card);
+                } catch (syncErr) {
+                    console.warn("[Studio Sync Warning]:", syncErr);
+                }
+            }
+        }
+    } finally {
+        if (typingBubble && typingBubble.parentNode) {
+            typingBubble.remove();
+        }
+        isChatSubmitting = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove("opacity-50", "cursor-not-allowed");
+        }
+        if (input) input.focus();
     }
 }
 

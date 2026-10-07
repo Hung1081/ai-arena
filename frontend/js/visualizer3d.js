@@ -82,8 +82,12 @@ export class TraditionalVisualizer3D {
         this.buildGarment();
         this.buildAccessories();
         this.loadRealisticBody();
-        this.resizeObserver = new ResizeObserver(() => this.resize());
-        this.resizeObserver.observe(this.container);
+        this.handleResize = () => this.resize();
+        window.addEventListener("resize", this.handleResize);
+        if (window.ResizeObserver) {
+            this.resizeObserver = new ResizeObserver(() => this.resize());
+            this.resizeObserver.observe(this.container);
+        }
         this.resize();
         this.animate = this.animate.bind(this);
         this.animationFrame = requestAnimationFrame(this.animate);
@@ -1479,13 +1483,23 @@ export class TraditionalVisualizer3D {
 
     resize() {
         if (!this.container) return;
-        const width = this.container.clientWidth || this.container.parentElement?.clientWidth || 500;
-        const height = this.container.clientHeight || this.container.parentElement?.clientHeight || 560;
+        const width = this.container.clientWidth;
+        const height = this.container.clientHeight;
+
         if (width > 0 && height > 0) {
-            this.camera.aspect = width / height;
+            this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
             this.camera.updateProjectionMatrix();
-            this.renderer.setSize(width, height, false);
+            this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.render();
+        } else {
+            const fallbackWidth = this.container.parentElement?.clientWidth || 500;
+            const fallbackHeight = this.container.parentElement?.clientHeight || 560;
+            if (fallbackWidth > 0 && fallbackHeight > 0) {
+                this.camera.aspect = fallbackWidth / fallbackHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(fallbackWidth, fallbackHeight);
+                this.render();
+            }
         }
     }
 
@@ -1506,7 +1520,12 @@ export class TraditionalVisualizer3D {
 
     destroy() {
         cancelAnimationFrame(this.animationFrame);
-        this.resizeObserver.disconnect();
+        if (this.handleResize) {
+            window.removeEventListener("resize", this.handleResize);
+        }
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+        }
         this.controls.dispose();
         this.disposeGroup(this.bodyGroup);
         this.disposeGroup(this.garmentGroup);
