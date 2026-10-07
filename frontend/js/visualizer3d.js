@@ -643,10 +643,15 @@ export class TraditionalVisualizer3D {
 
     /**
      * Tự động đặt camera và controls.target để khung hình ôm trọn toàn bộ model.
+     * Gọi updateMatrixWorld() TRƯỚC khi đo Box3 — đảm bảo bounds chính xác.
      *
      * @param {THREE.Object3D} [model] - Model cần fit (mặc định: this.modelRoot).
      */
     fitCameraToModel(model = this.modelRoot) {
+        // BẮT BUỘC: cập nhật matrix toàn bộ cây scene trước khi đo Box3
+        // Nếu bỏ bước này, Box3 trả về bounds cũ → camera tính sai → model bị cắt
+        model.updateMatrixWorld(true);
+
         // 1. Tính bounding box thực tế của model (sau scale, position, rotation)
         const box = new THREE.Box3().setFromObject(model);
 
@@ -664,18 +669,26 @@ export class TraditionalVisualizer3D {
         // 2. Đặt tâm xoay OrbitControls vào đúng giữa model
         this.controls.target.copy(center);
 
-        // 3. Tính khoảng cách camera dựa trên kích thước lớn nhất và góc nhìn FOV
+        // 3. Tính khoảng cách camera — factor 2.0 để thấy toàn thân kể cả phụ kiện cao
         const maxDim = Math.max(size.x, size.y, size.z);
         const fov    = this.camera.fov * (Math.PI / 180);
-        let cameraDist = (maxDim / (2 * Math.tan(fov / 2))) * 1.5;
+        let cameraDist = (maxDim / (2 * Math.tan(fov / 2))) * 2.0;
+
+        // Kiểm tra thêm chiều ngang nếu container landscape
+        const aspect = this.camera.aspect || 1;
+        if (aspect > 1) {
+            const hFov  = 2 * Math.atan(Math.tan(fov / 2) * aspect);
+            const distW = (size.x / 2) / Math.tan(hFov / 2) * 2.0;
+            cameraDist  = Math.max(cameraDist, distW);
+        }
 
         this.camera.position.set(center.x, center.y, center.z + cameraDist);
         this.camera.near = maxDim / 100;
         this.camera.far  = maxDim * 100;
         this.camera.updateProjectionMatrix();
 
-        // Cập nhật giới hạn zoom theo khoảng cách thực
-        this.controls.minDistance = Math.max(0.5, cameraDist * 0.2);
+        // Cập nhật giới hạn zoom
+        this.controls.minDistance = Math.max(0.5, cameraDist * 0.15);
         this.controls.maxDistance = cameraDist * 3.0;
         this.controls.update();
         this.render();
