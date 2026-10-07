@@ -1,12 +1,27 @@
 /**
  * Vietnamese Traditional Fashion Stylist - Main Application Logic
  * Upgraded to match "Khái quát ý tưởng Việt phục" specifications.
- * Features realistic human models, photography lookbooks, and dual visualizer modes.
+ * Features a parametric 3D model and Gemini-generated photographic previews.
  */
 
-let visualizer = null;
+let visualizer3D = null;
+let studioViewMode = "3d";
+let bodyUpdateFrame = null;
+let aiPreviewAbortController = null;
+let aiPreviewDebounceTimer = null;
+let aiPreviewObjectUrl = null;
+let aiPreviewGenerationId = 0;
+let aiPreviewQuotaMessage = "";
 let currentLookRecommendation = null;
 let currentUploadedImage = null; // { base64: string, mimeType: string, name: string }
+
+const bodyMeasurements = {
+    height: 168,
+    weight: 58,
+    chest: 86,
+    waist: 66,
+    hip: 92
+};
 
 // URL Backend API tương đối khi chạy trên Render hoặc Reverse Proxy
 const API_BASE_URL = '';
@@ -102,7 +117,10 @@ function dismissIntroSplash() {
         splash.classList.add("intro-hidden");
         setTimeout(() => {
             splash.style.display = "none";
+            checkFirstRunApiKeyPrompt();
         }, 800);
+    } else {
+        checkFirstRunApiKeyPrompt();
     }
 }
 
@@ -139,13 +157,276 @@ function playIntroSplash() {
 window.dismissIntroSplash = dismissIntroSplash;
 window.playIntroSplash = playIntroSplash;
 
+async function initThreeDStudio() {
+    const loading = document.getElementById("studio-3d-loading");
+    try {
+        const { TraditionalVisualizer3D } = await import("/static/js/visualizer3d.js?v=20261007_ankle_forward_v74");
+        visualizer3D = new TraditionalVisualizer3D("avatar-stage-3d");
+        visualizer3D.updateMeasurements(bodyMeasurements);
+        visualizer3D.updateOutfit(studioState);
+        if (loading) loading.classList.add("hidden");
+        setStudioViewMode("3d");
+    } catch (error) {
+        console.error("[Studio 3D] Không thể khởi tạo:", error);
+        if (loading) {
+            loading.innerHTML = `
+                <div class="max-w-xs rounded-2xl border border-red-200 bg-white/95 p-4 text-center shadow-md">
+                    <strong class="block text-sm text-red-900">Không thể mở chế độ 3D</strong>
+                    <span class="mt-1 block text-[11px] text-stone-600">Hãy khởi động lại server và tải lại trang; chế độ Ảnh AI vẫn có thể dùng.</span>
+                </div>
+            `;
+        }
+        setStudioViewMode("ai");
+    }
+}
+
+function syncStudioVisualizers() {
+    if (visualizer3D) visualizer3D.updateOutfit(studioState);
+    scheduleAIPreviewGeneration();
+}
+
+function setStudioViewMode(mode) {
+    const requested = mode === "ai" ? "ai" : "3d";
+    if (requested === "3d" && !visualizer3D) return;
+    studioViewMode = requested;
+
+    const stage3D = document.getElementById("avatar-stage-3d");
+    const stageAI = document.getElementById("avatar-stage-ai");
+    const toolbar3D = document.getElementById("studio-3d-toolbar");
+    const help3D = document.getElementById("studio-3d-help");
+    const detailNote3D = document.getElementById("studio-3d-detail-note");
+    const button3D = document.getElementById("studio-view-3d-btn");
+    const buttonAI = document.getElementById("studio-view-ai-btn");
+
+    if (stage3D) stage3D.classList.toggle("hidden", requested !== "3d");
+    if (stageAI) stageAI.classList.toggle("hidden", requested !== "ai");
+    if (toolbar3D) {
+        toolbar3D.classList.toggle("hidden", requested !== "3d");
+        toolbar3D.classList.toggle("flex", requested === "3d");
+    }
+    if (help3D) help3D.classList.toggle("hidden", requested !== "3d");
+    if (detailNote3D) detailNote3D.classList.toggle("hidden", false);
+    if (button3D) button3D.classList.toggle("active", requested === "3d");
+    if (buttonAI) buttonAI.classList.toggle("active", requested === "ai");
+
+    if (requested === "3d" && visualizer3D) {
+        requestAnimationFrame(() => visualizer3D.resize());
+    }
+}
+
+function getStudioAIPreviewConfig() {
+    const catalog = window.STYLIST_CATALOG;
+    const garment = catalog?.garments?.find((item) => item.id === studioState.garmentId);
+    const componentName = (group, id, fallback) => catalog?.components?.[group]?.find((item) => item.id === id)?.name || fallback;
+    const bottomNames = {
+        pants_white: "Quần lụa trắng",
+        pants_black: "Quần lụa đen",
+        skirt_black: "Váy đụp lụa đen",
+        skirt_ethnic: "Váy xòe thổ cẩm",
+    };
+    const bagNames = {
+        none: "Không mang túi hoặc quạt",
+        tui_coi: "Túi cói quai tròn",
+        tui_may: "Túi mây tre đan",
+        tui_tho_cam: "Túi đeo thổ cẩm",
+    };
+    const hairNames = {
+        bui_tram: "Tóc búi thấp cài trâm",
+        xoa_tu_nhien: "Tóc xõa dài tự nhiên",
+        tet_duoi_sam: "Tóc tết đuôi sam",
+    };
+    return {
+        sourceImageUrl: garment?.photo || "",
+        options: {
+            garmentName: garment?.name || "Việt phục truyền thống",
+            garmentDescription: garment?.description || "",
+            colorHex: studioState.color,
+            colorName: studioState.colorName,
+            bottom: bottomNames[studioState.bottomType] || studioState.bottomType,
+            headdress: componentName("headdresses", studioState.headdress, "Không có"),
+            jewelry: componentName("jewelry", studioState.jewelry, "Không có"),
+            shoes: componentName("shoes", studioState.shoes, "Giữ nguyên"),
+            bag: bagNames[studioState.bag] || "Không có",
+            hairstyle: hairNames[studioState.hairstyle] || "Giữ nguyên",
+            measurements: { ...bodyMeasurements },
+        },
+    };
+}
+
+function revokeAIPreviewObjectUrl() {
+    if (aiPreviewObjectUrl) {
+        URL.revokeObjectURL(aiPreviewObjectUrl);
+        aiPreviewObjectUrl = null;
+    }
+}
+
+function abortAIPreviewRequest() {
+    if (aiPreviewAbortController) {
+        aiPreviewAbortController.abort();
+        aiPreviewAbortController = null;
+    }
+}
+
+function setAIPreviewState(state, message = "") {
+    const image = document.getElementById("studio-ai-preview-image");
+    const empty = document.getElementById("studio-ai-preview-empty");
+    const loading = document.getElementById("studio-ai-preview-loading");
+    const error = document.getElementById("studio-ai-preview-error");
+    const errorText = document.getElementById("studio-ai-preview-error-text");
+    const caption = document.getElementById("studio-ai-preview-caption");
+    if (empty) empty.classList.toggle("hidden", state !== "empty");
+    if (loading) loading.classList.toggle("hidden", state !== "loading");
+    if (error) error.classList.toggle("hidden", state !== "error");
+    if (image) image.classList.toggle("hidden", state !== "ready");
+    if (caption) caption.classList.toggle("hidden", state !== "ready");
+    if (errorText) errorText.textContent = message;
+    if (caption && state === "ready") caption.textContent = message;
+}
+
+function clearOldAIPreview() {
+    abortAIPreviewRequest();
+    revokeAIPreviewObjectUrl();
+    aiPreviewGenerationId += 1;
+    const image = document.getElementById("studio-ai-preview-image");
+    if (image) image.removeAttribute("src");
+    setAIPreviewState("empty");
+}
+
+function scheduleAIPreviewGeneration() {
+    if (aiPreviewDebounceTimer) clearTimeout(aiPreviewDebounceTimer);
+    clearOldAIPreview();
+    if (aiPreviewQuotaMessage) {
+        setAIPreviewState("error", aiPreviewQuotaMessage);
+        return;
+    }
+    aiPreviewDebounceTimer = setTimeout(() => {
+        aiPreviewDebounceTimer = null;
+        generateAIOutfitPreview(false);
+    }, 850);
+}
+
+function dataUrlToBlob(dataUrl) {
+    const [header, encoded] = String(dataUrl).split(",", 2);
+    const mimeType = header.match(/^data:([^;]+);base64$/)?.[1] || "image/png";
+    const binary = atob(encoded || "");
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mimeType });
+}
+
+async function generateAIOutfitPreview(force = false) {
+    if (force && aiPreviewDebounceTimer) {
+        clearTimeout(aiPreviewDebounceTimer);
+        aiPreviewDebounceTimer = null;
+    }
+    if (force) aiPreviewQuotaMessage = "";
+    const config = getStudioAIPreviewConfig();
+    if (!config.sourceImageUrl) {
+        if (force) setStudioViewMode("ai");
+        setAIPreviewState("error", "Loại y phục này chưa có ảnh mẫu nguồn.");
+        return;
+    }
+
+    clearOldAIPreview();
+    const generationId = ++aiPreviewGenerationId;
+    aiPreviewAbortController = new AbortController();
+    if (force) setStudioViewMode("ai");
+    setAIPreviewState("loading");
+
+    try {
+        const apiKey = localStorage.getItem("gemini_api_key") || "";
+        const response = await fetch(`${API_BASE_URL}/api/generate-outfit-preview`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(apiKey ? { "x-gemini-api-key": apiKey } : {}),
+            },
+            body: JSON.stringify({
+                source_image_url: config.sourceImageUrl,
+                options: config.options,
+            }),
+            signal: aiPreviewAbortController.signal,
+            cache: "no-store",
+        });
+        const data = await response.json();
+        if (!response.ok || !data.generated_image) {
+            const apiError = new Error(data.message || "Gemini chưa tạo được ảnh.");
+            apiError.code = data.code || "";
+            throw apiError;
+        }
+        const objectUrl = URL.createObjectURL(dataUrlToBlob(data.generated_image));
+        if (generationId !== aiPreviewGenerationId) {
+            URL.revokeObjectURL(objectUrl);
+            return;
+        }
+        aiPreviewObjectUrl = objectUrl;
+        const image = document.getElementById("studio-ai-preview-image");
+        if (image) image.src = objectUrl;
+        const modelLabel = data.generated_model ? ` · ${data.generated_model}` : "";
+        setAIPreviewState("ready", `${config.options.garmentName} · ${config.options.colorName} · ảnh do Gemini tạo${modelLabel}`);
+    } catch (error) {
+        if (error.name === "AbortError" || generationId !== aiPreviewGenerationId) return;
+        if (error.code === "GEMINI_IMAGE_QUOTA_EXHAUSTED") aiPreviewQuotaMessage = error.message;
+        setAIPreviewState("error", error.message || "Không thể tạo ảnh AI lúc này.");
+    } finally {
+        if (generationId === aiPreviewGenerationId) aiPreviewAbortController = null;
+    }
+}
+
+function openAIPreviewMode() {
+    if (aiPreviewObjectUrl) setStudioViewMode("ai");
+    else generateAIOutfitPreview(true);
+}
+
+window.addEventListener("beforeunload", () => {
+    if (aiPreviewDebounceTimer) clearTimeout(aiPreviewDebounceTimer);
+    abortAIPreviewRequest();
+    revokeAIPreviewObjectUrl();
+});
+
+function updateBodyMeasurement(key, rawValue) {
+    if (!Object.prototype.hasOwnProperty.call(bodyMeasurements, key)) return;
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) return;
+    bodyMeasurements[key] = value;
+
+    const output = document.getElementById(`body-${key}-value`);
+    if (output) output.textContent = `${value} ${key === "weight" ? "kg" : "cm"}`;
+
+    if (bodyUpdateFrame) cancelAnimationFrame(bodyUpdateFrame);
+    bodyUpdateFrame = requestAnimationFrame(() => {
+        if (visualizer3D) visualizer3D.updateMeasurements(bodyMeasurements);
+        scheduleAIPreviewGeneration();
+        bodyUpdateFrame = null;
+    });
+}
+
+function resetBodyMeasurements() {
+    Object.assign(bodyMeasurements, { height: 168, weight: 58, chest: 86, waist: 66, hip: 92 });
+    Object.entries(bodyMeasurements).forEach(([key, value]) => {
+        const input = document.getElementById(`body-${key}`);
+        const output = document.getElementById(`body-${key}-value`);
+        if (input) input.value = value;
+        if (output) output.textContent = `${value} ${key === "weight" ? "kg" : "cm"}`;
+    });
+    if (visualizer3D) visualizer3D.updateMeasurements(bodyMeasurements);
+    scheduleAIPreviewGeneration();
+}
+
+function reset3DStudioCamera() {
+    if (visualizer3D) visualizer3D.resetCamera();
+}
+
+function toggle3DAutoRotate(enabled) {
+    if (visualizer3D) visualizer3D.setAutoRotate(enabled);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     // 0. Trigger Royal Intro Transition Plaque
     initIntroSplash();
 
-    // 1. Initialize Dynamic Vector Visualizer with Realistic Human Features
-    visualizer = new TraditionalVisualizer("avatar-stage");
-    visualizer.updateOutfit(studioState);
+    // 1. Initialize the parametric Three.js mannequin
+    initThreeDStudio();
 
     // 2. Initialize UI Components
     initStudioControls();
@@ -167,6 +448,11 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // 5. Cho phép dán (Ctrl+V) và kéo-thả ảnh vào khung chat, không chỉ
+    //    bấm nút chọn tệp như trước.
+    initPasteImageSupport();
+    initDragDropImageSupport();
 });
 
 /**
@@ -290,8 +576,10 @@ function executeTabSwitch(tabName) {
         }
     });
 
-    if (tabName === "studio" && visualizer) {
-        setTimeout(() => visualizer.render(), 40);
+    if (tabName === "studio") {
+        setTimeout(() => {
+            if (studioViewMode === "3d" && visualizer3D) visualizer3D.resize();
+        }, 40);
     }
 
     if (window.lucide) {
@@ -434,14 +722,14 @@ function selectStudioGarment(id) {
     const bagSelect = document.getElementById("bag-select");
     if (bagSelect) bagSelect.value = studioState.bag;
 
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
     initStudioControls();
 }
 
 function selectStudioColor(hex, name) {
     studioState.color = hex;
     studioState.colorName = name;
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
 
     const nameEl = document.getElementById("selected-color-name");
     if (nameEl) nameEl.innerText = name;
@@ -455,43 +743,43 @@ function selectStudioColor(hex, name) {
 
 function selectStudioBottom(id) {
     studioState.bottomType = id;
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
     initStudioControls();
 }
 
 function selectStudioHeaddress(id) {
     studioState.headdress = id;
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
     initStudioControls();
 }
 
 function selectStudioJewelry(id) {
     studioState.jewelry = id;
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
     initStudioControls();
 }
 
 function selectStudioShoes(id) {
     studioState.shoes = id;
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
     initStudioControls();
 }
 
 function selectStudioBag(val) {
     studioState.bag = val;
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
 }
 
 function selectStudioHair(val) {
     studioState.hairstyle = val;
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
 }
 
 function randomizeOutfit() {
     const catalog = window.STYLIST_CATALOG;
     const randomGarment = catalog.garments[Math.floor(Math.random() * catalog.garments.length)];
     const randomColor = randomGarment.colors[Math.floor(Math.random() * randomGarment.colors.length)];
-
+    
     studioState.garmentId = randomGarment.id;
     studioState.color = randomColor.hex;
     studioState.colorName = randomColor.name;
@@ -511,7 +799,7 @@ function randomizeOutfit() {
     const bagSelect = document.getElementById("bag-select");
     if (bagSelect) bagSelect.value = studioState.bag;
 
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
     initStudioControls();
 }
 
@@ -526,14 +814,22 @@ function triggerImageUpload() {
 function handleImageSelected(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    xuLyFileAnhDaChon(file);
+}
 
-    if (!file.type.startsWith("image/")) {
+/**
+ * Xử lý chung cho MỌI cách đưa ảnh vào: bấm nút chọn file, dán (Ctrl+V),
+ * hoặc kéo-thả. Trước đây chỉ có input[type=file] gọi tới logic này, nên
+ * dán và kéo-thả hoàn toàn không hoạt động dù người dùng có thử.
+ */
+function xuLyFileAnhDaChon(file) {
+    if (!file.type || !file.type.startsWith("image/")) {
         alert("Vui lòng chọn một tệp hình ảnh hợp lệ (PNG, JPG, WEBP).");
         return;
     }
 
     const reader = new FileReader();
-    reader.onload = function (evt) {
+    reader.onload = function(evt) {
         const base64Str = evt.target.result;
         currentUploadedImage = {
             file: file,
@@ -554,6 +850,58 @@ function handleImageSelected(e) {
         if (window.lucide) window.lucide.createIcons();
     };
     reader.readAsDataURL(file);
+}
+
+/**
+ * Dán ảnh bằng Ctrl+V khi con trỏ đang ở trong khung chat.
+ * Gắn trên toàn bộ form thay vì chỉ ô textarea, để dán được cả khi vừa
+ * bấm vào vùng preview hay nút gửi.
+ */
+function initPasteImageSupport() {
+    const chatForm = document.getElementById("chat-form");
+    if (!chatForm) return;
+
+    chatForm.addEventListener("paste", (e) => {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type && item.type.startsWith("image/")) {
+                const file = item.getAsFile();
+                if (file) {
+                    e.preventDefault();
+                    xuLyFileAnhDaChon(file);
+                }
+                break;
+            }
+        }
+    });
+}
+
+/**
+ * Kéo-thả ảnh trực tiếp vào khu vực chat. Gắn trên cả khung chứa tin nhắn
+ * lẫn vùng nhập liệu để người dùng thả ở đâu trong khung chat cũng được.
+ */
+function initDragDropImageSupport() {
+    const dropZones = [
+        document.getElementById("chat-messages"),
+        document.getElementById("chat-form")
+    ].filter(Boolean);
+
+    dropZones.forEach((zone) => {
+        zone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            zone.classList.add("chat-drop-active");
+        });
+        zone.addEventListener("dragleave", () => {
+            zone.classList.remove("chat-drop-active");
+        });
+        zone.addEventListener("drop", (e) => {
+            e.preventDefault();
+            zone.classList.remove("chat-drop-active");
+            const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+            if (file) xuLyFileAnhDaChon(file);
+        });
+    });
 }
 
 function removeChatImage() {
@@ -610,9 +958,7 @@ function applyLookToStudioSilently(look) {
     }
 
     // Cập nhật giao diện phòng mix đồ & mô hình hiển thị
-    if (visualizer && typeof visualizer.updateOutfit === "function") {
-        visualizer.updateOutfit(studioState);
-    }
+    syncStudioVisualizers();
     if (typeof initStudioControls === "function") {
         initStudioControls();
     }
@@ -842,7 +1188,7 @@ function appendUserMessage(text, imageObj = null) {
     const chatContainer = document.getElementById("chat-messages");
     const msg = document.createElement("div");
     msg.className = "flex items-start justify-end space-x-3";
-
+    
     let imageHtml = "";
     if (imageObj && imageObj.base64) {
         imageHtml = `
@@ -959,21 +1305,6 @@ function updateRecommendationCard(look, userImageObj = null) {
 
     if (dynastyBadge) dynastyBadge.innerText = look.dynasty || "Việt Phục";
 
-    // Ảnh ảo thời trang nếu có
-    let outfitImageHtml = "";
-    if (look.image_url) {
-        outfitImageHtml = `
-            <div class="relative w-full overflow-hidden my-2" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e5d088; background: #1c1917;">
-                <img 
-                    src="${look.image_url}" 
-                    alt="${look.garment_name || 'Phác họa cổ phục'}" 
-                    style="border-radius: 12px; width: 100%; height: auto; aspect-ratio: 4/5; object-fit: cover; display: block;"
-                    loading="lazy"
-                />
-            </div>
-        `;
-    }
-
     container.innerHTML = `
         <div class="space-y-3 font-serif-vi text-xs text-stone-700">
             <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200">
@@ -981,8 +1312,6 @@ function updateRecommendationCard(look, userImageObj = null) {
                 <p class="text-red-900 font-semibold">${look.garment_name}</p>
                 <span class="inline-block mt-1 text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">Vibe: ${look.vibe || 'Thanh lịch'}</span>
             </div>
-
-            ${outfitImageHtml}
 
             <div>
                 <span class="font-sans text-[10px] uppercase tracking-wider font-semibold text-stone-500 block mb-1">Hòa Sắc Tranh Dân Gian:</span>
@@ -1058,7 +1387,7 @@ function applyLookToStudio() {
         if (bagSelect) bagSelect.value = studioState.bag;
     }
 
-    visualizer.updateOutfit(studioState);
+    syncStudioVisualizers();
     initStudioControls();
     switchTab("studio");
 }
@@ -1066,276 +1395,100 @@ function applyLookToStudio() {
 /**
  * Occasion & Vibe Matcher Wizard
  */
-/**
- * Occasion & Vibe Matcher Wizard - Tích hợp AI Google Gemini & Pollinations Image Generator
- */
 async function handleOccasionSubmit(e) {
-    if (e && e.preventDefault) e.preventDefault();
-
-    // 1. Thu thập chính xác giá trị từ các ô input/select
-    const occasionSelect = document.getElementById("gen-occasion");
-    const occasion = occasionSelect?.value || "tet";
-    const occasionText = occasionSelect?.selectedOptions?.[0]?.text || occasion;
-
+    e.preventDefault();
+    const occasion = document.getElementById("gen-occasion").value;
+    const gender = document.getElementById("gen-gender").value;
     const vibeRadio = document.querySelector('input[name="vibe"]:checked');
     const vibe = vibeRadio ? vibeRadio.value : "thanh_lich";
-    const vibeLabel = vibeRadio?.closest('label')?.querySelector('.font-bold')?.innerText || "Thanh Lịch";
+    const garmentPref = document.getElementById("gen-garment-pref").value;
 
-    const genderSelect = document.getElementById("gen-gender");
-    const gender = genderSelect?.value || "nu";
-    const genderText = genderSelect?.selectedOptions?.[0]?.text || (gender === "nam" ? "Nam Giới" : "Nữ Giới");
-
-    const garmentPrefSelect = document.getElementById("gen-garment-pref");
-    const garmentPref = garmentPrefSelect?.value || "auto";
-    const garmentText = garmentPrefSelect?.selectedOptions?.[0]?.text || "Tự động gợi ý hòa hợp";
-
-    // 2. Tìm nút bấm và các phần tử giao diện
-    const submitBtn = document.getElementById("btn-tao-phoi-do") || document.querySelector('#occasion-form button[type="submit"]') || document.querySelector("button.bg-red-800");
-    const errorMsg = document.getElementById("error-message");
     const resultBox = document.getElementById("generator-result-box");
-
-    // Ẩn dòng chữ đỏ báo lỗi nếu có
-    if (errorMsg) {
-        errorMsg.classList.add("hidden");
-        errorMsg.innerText = "";
-    }
-
-    // Lưu lại nội dung gốc của nút bấm để phục hồi sau này
-    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : null;
-
-    // 3. Hiển thị trạng thái loading trên nút bấm
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = `
-            <div class="flex items-center justify-center space-x-2">
-                <svg class="animate-spin h-4 w-4 text-amber-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>✨ Cô Tư đang phác họa y phục...</span>
-            </div>
-        `;
-    }
-
-    // 4. Hiển thị khung kết quả ở trạng thái đang phác họa
-    if (resultBox) {
-        resultBox.classList.remove("hidden");
-        resultBox.innerHTML = `
-            <div class="lacquer-card p-8 bg-gradient-to-br from-amber-50/90 to-orange-50/40 border border-amber-300 rounded-3xl text-center space-y-4 shadow-sm animate-pulse">
-                <div class="w-12 h-12 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <div class="space-y-1">
-                    <span class="red-seal text-xs">AI Stylist & Họa Sĩ Cổ Phong</span>
-                    <h3 class="text-lg font-bold font-imperial text-stone-900">Cô Tư Đang Phác Họa Y Phục Của Bạn</h3>
-                    <p class="text-xs text-stone-600 font-serif-vi max-w-md mx-auto">
-                        Đang đối chiếu điển lễ triều đại, phối hòa sắc ngũ hành và dệt nên hình ảnh cổ phục tinh hoa...
-                    </p>
-                </div>
-            </div>
-        `;
-    }
+    resultBox.classList.remove("hidden");
+    resultBox.innerHTML = `
+        <div class="text-center py-6">
+            <div class="w-8 h-8 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p class="text-xs text-stone-500 font-serif-vi">Đang hòa sắc theo công thức: Y phục + Hoàn cảnh + Vibe...</p>
+        </div>
+    `;
 
     try {
-        const apiKey = localStorage.getItem("gemini_api_key") || localStorage.getItem("CO_TU_GEMINI_KEY") || "";
-
-        // 5. Gửi POST request đến API backend /api/generate-outfit-image
-        const payload = {
-            dip: occasionText,
-            vibe: vibeLabel,
-            gioi_tinh: genderText,
-            y_phuc: garmentText,
-            gemini_api_key: apiKey
-        };
-
-        const response = await fetch(`${API_BASE_URL}/api/generate-outfit-image`, {
+        const res = await fetch(`${API_BASE_URL}/api/recommend`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ 
+                occasion: occasion, 
+                gender: gender, 
+                vibe: vibe,
+                element: garmentPref !== "auto" ? garmentPref : null 
+            })
         });
+        const data = await res.json();
+        const look = data.look_card;
+        currentLookRecommendation = look;
 
-        if (!response.ok) {
-            throw new Error(`Máy chủ phản hồi mã lỗi (${response.status}). Vui lòng thử lại.`);
-        }
-
-        const data = await response.json();
-
-        if (data.status !== "success") {
-            throw new Error(data.message || "Không thể tạo gợi ý và hình ảnh y phục lúc này.");
-        }
-
-        // Lấy dữ liệu trả về từ API (hỗ trợ linh hoạt cả /api/recommend và /api/generate-outfit-image)
-        const imageUrl = data.image_url || data.look_card?.image_url;
-        const garmentName = data.garment_name || data.outfit?.ao || data.look_card?.garment_name || "Áo Cổ Phục Việt Nam";
-        const quanVay = data.outfit?.quan_vay || data.look_card?.bottom || "Quần lụa ống rộng mềm mại";
-        const phuKien = data.outfit?.phu_kien || (data.look_card ? `${data.look_card.shoes || ''}, ${data.look_card.headdress || ''}, ${data.look_card.jewelry || ''}`.replace(/^, |, $/g, '') : "Khăn đóng, guốc mộc và kiềng bạc");
-        const advice = data.message || data.analysis || data.look_card?.etiquette_tip || "Phong thái đoan trang, khoan thai làm nên cốt cách người Việt.";
-
-        // Lưu dữ liệu vào biến toàn cục để có thể tích hợp với Studio Mix Đồ
-        currentLookRecommendation = {
-            title: `Tạo Hình Y Phục Dịp ${occasionText.split('(')[0].trim()}`,
-            garment_name: garmentName,
-            shirt_color: data.outfit?.ao || "Sắc màu cổ phong",
-            bottom: quanVay,
-            fabric: "Lụa tơ tằm & Gấm hoa",
-            shoes: data.outfit?.phu_kien || "Guốc mộc",
-            bag: "Túi gấm thêu tay",
-            headdress: "Khăn đóng / Khăn vành",
-            jewelry: "Kiềng bạc chạm sen",
-            hairstyle: "Tóc búi cài trâm",
-            etiquette_tip: advice,
-            image_url: imageUrl,
-            palette: ["#9E1A1A", "#D4AF37", "#1A5336", "#FAF6EE"],
-            palette_names: ["Đỏ Son", "Hoàng Kim", "Xanh Ngọc", "Nền Kem"]
-        };
-
-        // 6. Render kết quả phối đồ và chèn ảnh AI sinh ra
-        if (resultBox) {
-            resultBox.innerHTML = `
-                <div class="lacquer-card p-6 lg:p-8 bg-gradient-to-br from-amber-50/95 via-orange-50/30 to-amber-100/50 border border-amber-300 space-y-6 rounded-3xl shadow-lg">
-                    <!-- Header: Công Thức Phối Đồ / Vibe -->
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-amber-200/80 pb-4 gap-2">
-                        <div>
-                            <div class="flex items-center space-x-2 mb-1">
-                                <span class="red-seal text-[11px]">Công Thức Phối Đồ</span>
-                                <span class="text-xs font-semibold text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full">
-                                    Vibe: ${vibeLabel}
-                                </span>
-                            </div>
-                            <h3 class="text-xl lg:text-2xl font-bold font-imperial text-stone-900">
-                                Gợi Ý Y Phục Dịp ${occasionText.split('(')[0].trim()}
-                            </h3>
+        resultBox.innerHTML = `
+            <div class="lacquer-card p-6 bg-gradient-to-br from-amber-50/90 to-orange-50/40 border border-amber-300 space-y-4 rounded-3xl">
+                <div class="flex items-center justify-between border-b border-amber-200 pb-3">
+                    <div>
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="red-seal text-[11px]">Công Thức Hòa Phối</span>
+                            <span class="text-xs font-semibold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-full">Vibe ${look.vibe || 'Thanh lịch'}</span>
                         </div>
-                        <span class="text-xs text-stone-500 font-serif-vi bg-white/80 border border-amber-200 px-3 py-1.5 rounded-xl self-start sm:self-auto">
-                            Dành cho: <strong>${genderText.split('(')[0].trim()}</strong>
-                        </span>
+                        <h3 class="text-xl font-bold font-imperial text-stone-900">${look.title}</h3>
                     </div>
+                    <span class="text-xs text-stone-500 font-serif-vi">${look.dynasty}</span>
+                </div>
 
-                    <!-- Main Content Grid: Image (5 cols) + Styling Details (7 cols) -->
-                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                        <!-- AI Generated Image Showcase with Luxury Styling -->
-                        <div class="lg:col-span-5 space-y-3">
-                            <div class="relative w-full overflow-hidden" style="border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border: 1px solid #e5d088; background: #1c1917;">
-                                <!-- Loading State Shimmer for Image Loading -->
-                                <div id="ai-img-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-stone-900/95 text-amber-200 p-4 text-center z-10 transition-opacity duration-500">
-                                    <div class="w-10 h-10 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                    <p class="text-xs font-serif-vi font-semibold text-amber-200">✨ Cô Tư đang phác họa y phục...</p>
-                                    <span class="text-[10px] text-stone-400 mt-1">Độ phân giải 800x1000 sắc nét</span>
-                                </div>
-
-                                <!-- Image Element with Smooth Load Transition -->
-                                <img 
-                                    id="outfit-ai-image"
-                                    src="${imageUrl}" 
-                                    alt="${garmentName}" 
-                                    style="border-radius: 12px; width: 100%; height: auto; aspect-ratio: 4/5; object-fit: cover; display: block; opacity: 0; transition: opacity 0.6s ease-in-out;"
-                                    loading="lazy"
-                                    onload="this.style.opacity='1'; const loader = document.getElementById('ai-img-loading'); if(loader){ loader.style.opacity='0'; setTimeout(()=>loader.remove(), 400); }"
-                                    onerror="const loader = document.getElementById('ai-img-loading'); if(loader) loader.remove(); this.style.opacity='1'; this.onerror=null; this.src='https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800&auto=format&fit=crop';"
-                                />
-                            </div>
-
-                            <!-- Image Footer Links -->
-                            <div class="flex items-center justify-between text-xs text-stone-500 font-serif-vi px-1">
-                                <span class="flex items-center space-x-1">
-                                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-600"></i>
-                                    <span>Họa ảnh AI 8k · Pollinations</span>
-                                </span>
-                                <a href="${imageUrl}" target="_blank" rel="noopener noreferrer" class="text-red-800 hover:text-red-900 font-semibold underline flex items-center space-x-1">
-                                    <span>Mở ảnh lớn / Tải về</span>
-                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                </a>
-                            </div>
-                        </div>
-
-                        <!-- Styling Details -->
-                        <div class="lg:col-span-7 space-y-4">
-                            <!-- Outfit Breakdown Cards -->
-                            <div class="space-y-3">
-                                <div class="p-3.5 bg-white/90 rounded-2xl border border-amber-200 shadow-2xs">
-                                    <div class="flex items-center space-x-2 text-red-900 font-bold text-xs uppercase tracking-wide mb-1">
-                                        <i data-lucide="shirt" class="w-4 h-4 text-red-800"></i>
-                                        <span>Y Phục Chủ Đạo (Áo)</span>
-                                    </div>
-                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed font-semibold">${garmentName}</p>
-                                </div>
-
-                                <div class="p-3.5 bg-white/90 rounded-2xl border border-amber-200 shadow-2xs">
-                                    <div class="flex items-center space-x-2 text-amber-900 font-bold text-xs uppercase tracking-wide mb-1">
-                                        <i data-lucide="scissors" class="w-4 h-4 text-amber-800"></i>
-                                        <span>Quần / Váy Phối Cùng</span>
-                                    </div>
-                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${quanVay}</p>
-                                </div>
-
-                                <div class="p-3.5 bg-white/90 rounded-2xl border border-amber-200 shadow-2xs">
-                                    <div class="flex items-center space-x-2 text-stone-800 font-bold text-xs uppercase tracking-wide mb-1">
-                                        <i data-lucide="gem" class="w-4 h-4 text-stone-700"></i>
-                                        <span>Trọn Bộ Phụ Kiện Đi Kèm</span>
-                                    </div>
-                                    <p class="text-xs font-serif-vi text-stone-800 leading-relaxed">${phuKien}</p>
-                                </div>
-                            </div>
-
-                            <!-- Lời khuyên văn hóa từ Cô Tư -->
-                            <div class="p-4 bg-amber-100/60 rounded-2xl text-xs font-serif-vi text-stone-800 border-l-4 border-red-800 shadow-2xs space-y-1">
-                                <div class="font-bold text-red-900 flex items-center space-x-1.5 mb-1">
-                                    <i data-lucide="feather" class="w-4 h-4"></i>
-                                    <span>Lời Khuyên Từ Cô Tư AI:</span>
-                                </div>
-                                <p class="italic leading-relaxed">"${advice}"</p>
-                            </div>
-
-                            <!-- Action Buttons -->
-                            <div class="pt-2 flex flex-col sm:flex-row items-center gap-3">
-                                <button onclick="applyLookToStudio()" class="w-full sm:flex-1 py-3 px-4 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 text-xs font-semibold shadow-md flex items-center justify-center space-x-2 transition">
-                                    <i data-lucide="palette" class="w-4 h-4"></i>
-                                    <span>Mặc Thử Trong Studio Mix Đồ</span>
-                                </button>
-                                <button onclick="switchTab('chat'); sendQuickPrompt('Cô Tư ơi, hãy tư vấn thêm về cách chọn phụ kiện cho tạo hình: ${garmentName.slice(0, 40)} này nhé!');" class="w-full sm:w-auto py-3 px-4 rounded-2xl border border-amber-400 bg-white hover:bg-amber-50 text-stone-700 text-xs font-semibold transition flex items-center justify-center space-x-1.5">
-                                    <i data-lucide="message-square" class="w-4 h-4 text-amber-700"></i>
-                                    <span>Hỏi Thêm Cô Tư</span>
-                                </button>
-                            </div>
-                        </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-serif-vi text-stone-700">
+                    <div class="space-y-1.5">
+                        <p><strong>Y phục chủ đạo:</strong> <span class="text-red-900 font-bold">${look.garment_name}</span></p>
+                        <p><strong>Màu áo đề xuất:</strong> ${look.shirt_color || 'Đỏ son / Hoàng kim'}</p>
+                        <p><strong>Quần / Váy:</strong> ${look.bottom}</p>
+                        <p><strong>Chất liệu khuyên dùng:</strong> ${look.fabric}</p>
+                    </div>
+                    <div class="space-y-1.5">
+                        <p><strong>Giày dép:</strong> ${look.shoes}</p>
+                        <p><strong>Túi xách:</strong> ${look.bag}</p>
+                        <p><strong>Khăn / Nón:</strong> ${look.headdress}</p>
+                        <p><strong>Trang sức & Tóc:</strong> ${look.jewelry} · ${look.hairstyle}</p>
                     </div>
                 </div>
-            `;
-            // Cuộn mượt đến khung kết quả
-            resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
 
-        if (window.lucide) window.lucide.createIcons();
+                <div class="pt-1">
+                    <strong class="text-xs block mb-1.5 font-sans uppercase tracking-wider text-stone-600">Bảng Màu Tranh Dân Gian:</strong>
+                    <div class="flex flex-wrap gap-2">
+                        ${(look.palette || []).map((hex, i) => `
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-[11px] bg-white border border-stone-200 shadow-2xs">
+                                <span class="w-3 h-3 rounded-full mr-1.5 border border-stone-300" style="background-color: ${hex}"></span>
+                                ${(look.palette_names && look.palette_names[i]) || hex}
+                            </span>
+                        `).join("")}
+                    </div>
+                </div>
 
-    } catch (err) {
-        console.error("Lỗi khi tạo phối đồ:", err);
+                <div class="p-3.5 bg-white/90 rounded-2xl text-xs font-serif-vi italic text-stone-700 border-l-3 border-red-800 shadow-2xs">
+                    "<strong>Lời khuyên văn hóa:</strong> ${look.etiquette_tip}"
+                </div>
 
-        // Hiển thị thông báo lỗi màu đỏ
-        if (errorMsg) {
-            errorMsg.innerText = `⚠️ ${err.message || 'Không thể tải gợi ý lúc này. Vui lòng kiểm tra lại kết nối mạng hoặc server.'}`;
-            errorMsg.classList.remove("hidden");
-        }
-
-        if (resultBox) {
-            resultBox.innerHTML = `
-                <div class="p-4 bg-red-50 text-red-800 border border-red-200 rounded-2xl text-xs font-serif-vi space-y-2">
-                    <p class="font-bold flex items-center space-x-1.5">
-                        <span>⚠️ Không thể tạo phối đồ lúc này:</span>
-                    </p>
-                    <p>${err.message || 'Đã xảy ra sự cố trong quá trình liên lạc với máy chủ. Vui lòng thử lại.'}</p>
-                    <button onclick="handleOccasionSubmit(event)" class="mt-2 px-3 py-1.5 bg-red-800 text-white rounded-xl text-xs font-sans hover:bg-red-900 transition">
-                        Thử lại
+                <div class="pt-2 flex items-center space-x-3">
+                    <button onclick="applyLookToStudio()" class="flex-1 py-3 px-4 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 text-xs font-medium shadow-md flex items-center justify-center space-x-2 transition">
+                        <i data-lucide="palette" class="w-4 h-4"></i>
+                        <span>Thử Tạo Hình Này Trong Phòng Mix Đồ</span>
+                    </button>
+                    <button onclick="switchTab('chat'); sendQuickPrompt('Tư vấn thêm chi tiết cho tạo hình: ${look.title}');" class="py-3 px-4 rounded-2xl border border-amber-400 bg-white hover:bg-amber-50 text-stone-700 text-xs font-medium transition">
+                        Hỏi Thêm Cô Tư
                     </button>
                 </div>
-            `;
-        }
-    } finally {
-        // Phục hồi lại trạng thái ban đầu của nút bấm
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            if (originalBtnHtml) {
-                submitBtn.innerHTML = originalBtnHtml;
-            }
-        }
+            </div>
+        `;
         if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+        resultBox.innerHTML = `
+            <div class="p-4 bg-red-50 text-red-800 rounded-2xl text-xs">
+                Không thể tải gợi ý lúc này. Vui lòng thử lại.
+            </div>
+        `;
     }
 }
 
@@ -1352,13 +1505,20 @@ function initEncyclopedia() {
             <div class="lacquer-card overflow-hidden flex flex-col justify-between hover:shadow-xl transition group rounded-3xl border border-amber-200">
                 <!-- Realistic Human Model Photo with soft rounded top & badge -->
                 <div class="relative h-56 w-full overflow-hidden bg-stone-100">
-                    <img src="${g.photo}" alt="${g.name}" class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105">
+                    ${g.photo
+                        ? `<img src="${g.photo}" alt="${g.name}" class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105">`
+                        : `<div class="w-full h-full flex flex-col items-center justify-center text-stone-400 bg-stone-200 gap-1">
+                                <i data-lucide="image-off" class="w-8 h-8"></i>
+                                <span class="text-[11px] font-serif-vi">Đang tìm ảnh thật phù hợp</span>
+                           </div>`
+                    }
                     <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-4 text-white">
                         <span class="text-[10px] font-semibold text-amber-300 tracking-wider uppercase">${g.type}</span>
                         <h3 class="text-xl font-bold font-imperial text-white">${g.name}</h3>
                         <span class="text-xs text-amber-200/90 font-serif-vi">${g.dynasty}</span>
                     </div>
                 </div>
+                ${g.photoNguon ? `<div class="px-5 pt-2 text-[10px] text-stone-400">Ảnh: ${g.photoNguon}</div>` : ""}
 
                 <div class="p-5 space-y-2.5 flex-1 flex flex-col justify-between">
                     <div class="space-y-2">
@@ -1466,11 +1626,14 @@ function openExportModal() {
     // Clone mini avatar into card or show photo model thumbnail
     const mini = document.getElementById("card-mini-avatar");
     if (mini) {
-        if (visualizer && visualizer.viewMode === "photo" && garment && garment.photo) {
+        const aiPreviewImage = document.getElementById("studio-ai-preview-image");
+        if (studioViewMode === "ai" && aiPreviewObjectUrl && aiPreviewImage?.src) {
+            mini.innerHTML = `<img src="${aiPreviewImage.src}" alt="Ảnh phối đồ Gemini" class="w-full h-full object-cover rounded-xl">`;
+        } else if (visualizer3D) {
+            const snapshot3D = visualizer3D.captureDataUrl();
+            mini.innerHTML = `<img src="${snapshot3D}" alt="${garment ? garment.name : 'Người mẫu Việt phục 3D'}" class="w-full h-full object-contain rounded-xl">`;
+        } else if (garment?.photo) {
             mini.innerHTML = `<img src="${garment.photo}" alt="${garment.name}" class="w-full h-full object-cover rounded-xl">`;
-        } else {
-            const stage = document.getElementById("avatar-stage");
-            if (stage) mini.innerHTML = stage.innerHTML;
         }
     }
 
@@ -1511,6 +1674,47 @@ function saveSettings() {
     else localStorage.removeItem("gemini_api_key");
     closeSettingsModal();
     alert("Cài đặt đã được lưu thành công!");
+    if (key && studioViewMode === "ai") generateAIOutfitPreview(true);
+}
+
+const KHOA_CO_DA_HOI_LAN_DAU = "da_hien_popup_khoa_lan_dau";
+
+/**
+ * Hỏi khoá Gemini đúng MỘT LẦN ở lần mở app đầu tiên — dù người dùng nhập
+ * khoá hay bấm bỏ qua, cờ dưới đây đều được ghi lại ngay để các lần mở
+ * sau không hiện popup này nữa.
+ *
+ * Trước tiên hỏi server còn khoá dự phòng không (/api/health), để đổi
+ * giọng thông báo: có khoá dự phòng thì đây là tuỳ chọn, hết khoá dự
+ * phòng thì đây là bước cần thiết để dùng được app.
+ */
+async function checkFirstRunApiKeyPrompt() {
+    if (localStorage.getItem(KHOA_CO_DA_HOI_LAN_DAU)) return;
+    // Đánh dấu ngay lập tức (trước khi chờ fetch) để tránh hiện hai lần
+    // nếu hàm này lỡ được gọi từ nhiều nơi cùng lúc.
+    localStorage.setItem(KHOA_CO_DA_HOI_LAN_DAU, "1");
+
+    // Nếu người dùng đã từng tự nhập khoá riêng từ trước, khỏi cần hỏi.
+    if (localStorage.getItem("gemini_api_key")) return;
+
+    let soKhoaDuPhong = 0;
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/health`);
+        const data = await res.json();
+        soKhoaDuPhong = data.soKhoaDuPhong || 0;
+    } catch (e) {
+        console.warn("Không kiểm tra được trạng thái khoá dự phòng:", e.message);
+    }
+
+    const hint = document.getElementById("settings-first-run-hint");
+    if (hint) {
+        hint.classList.remove("hidden");
+        hint.textContent = soKhoaDuPhong > 0
+            ? "App đã có sẵn khoá dùng chung, bạn có thể bỏ qua bước này. Tự nhập khoá riêng nếu muốn dùng ổn định hơn, không phải chờ lượt với người khác."
+            : "App cần một khoá Gemini để hoạt động. Lấy miễn phí tại aistudio.google.com/apikey, dán vào ô bên dưới.";
+    }
+
+    openSettingsModal();
 }
 
 function toggleApiKeyVisibility() {
@@ -1534,7 +1738,7 @@ let currentTryOnGarmentId = "ao_dai";
 
 function openTryOnWithCurrentLook() {
     const garmentId = (currentLookRecommendation && currentLookRecommendation.garment_id) || studioState.garmentId || "ao_dai";
-
+    
     // Check if user uploaded a photo
     let userImgBase64 = null;
     if (currentUploadedImage && currentUploadedImage.base64) {
@@ -1625,38 +1829,26 @@ async function launchVirtualTryOnModal(garmentId, userImgBase64) {
     const outfitDescEl = document.getElementById("tryon-outfit-desc");
     const analysisEl = document.getElementById("tryon-ai-analysis");
 
-    // Blend view elements
-    const blendOutfitImg = document.getElementById("tryon-blend-outfit-img");
-    const blendFaceImg = document.getElementById("tryon-blend-face-img");
-    const blendTitle = document.getElementById("tryon-blend-title");
     const garmentSelect = document.getElementById("tryon-garment-select");
-
     if (!modal) return;
+    if (garmentSelect) garmentSelect.value = garmentId;
 
-    if (garmentSelect) {
-        garmentSelect.value = garmentId;
-    }
-
-    // Garment display mapping
     const catalogGarment = (window.STYLIST_CATALOG && window.STYLIST_CATALOG.garments.find(g => g.id === garmentId)) || {};
-    const photoModel = (visualizer && visualizer.photoModels && visualizer.photoModels[garmentId]) || {};
-
-    const outfitPhoto = photoModel.url || catalogGarment.photo || "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=800&q=80";
+    const outfitPhoto = catalogGarment.photo || "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=800&q=80";
     const garmentName = catalogGarment.name || "Cổ Phục Việt Nam";
 
-    // Set images for Compare view
+    // View "So Sánh Song Song" — không đổi, vẫn dùng ảnh tư liệu tham khảo
     userImgEl.src = userImgBase64;
     outfitImgEl.src = outfitPhoto;
     outfitNameEl.textContent = garmentName;
     outfitDescEl.textContent = catalogGarment.dynasty || "Đại Việt Tinh Hoa";
 
-    // Set images for Blend view
-    if (blendOutfitImg) blendOutfitImg.src = outfitPhoto;
-    if (blendFaceImg) blendFaceImg.src = userImgBase64;
-    if (blendTitle) blendTitle.textContent = garmentName;
+    const titleEl = document.getElementById("tryon-blend-title");
+    if (titleEl) titleEl.textContent = garmentName;
 
-    // Reset face position to default fit
-    resetFacePosition();
+    modal.classList.remove("hidden");
+    switchTryOnTab("blend");
+    if (window.lucide) window.lucide.createIcons();
 
     analysisEl.innerHTML = `
         <div class="flex items-center space-x-2 text-stone-500 italic py-2">
@@ -1665,33 +1857,108 @@ async function launchVirtualTryOnModal(garmentId, userImgBase64) {
         </div>
     `;
 
-    modal.classList.remove("hidden");
-    switchTryOnTab("blend");
-    if (window.lucide) window.lucide.createIcons();
+    await goiApiGhepAnhThuTraiNghiem(garmentId, garmentName, catalogGarment, userImgBase64);
+}
 
-    // Call Backend Virtual Try-On API
+/**
+ * Gọi /api/try-on để lấy nhận xét + ảnh ghép AI thật. Nếu ảnh ghép thất
+ * bại (hết quota, mất mạng...), tự động lùi về chế độ cắt tròn thủ công
+ * cũ như phương án dự phòng — có ghi rõ đây là thủ công, không giả vờ là
+ * AI để tránh gây hiểu nhầm.
+ */
+async function goiApiGhepAnhThuTraiNghiem(garmentId, garmentName, catalogGarment, userImgBase64) {
+    const analysisEl = document.getElementById("tryon-ai-analysis");
+    const loadingEl = document.getElementById("tryon-blend-loading");
+    const resultImgEl = document.getElementById("tryon-blend-result-img");
+    const fallbackEl = document.getElementById("tryon-blend-fallback");
+    const manualControls = document.getElementById("tryon-manual-controls");
+    const retryBtn = document.getElementById("tryon-retry-ai-btn");
+    const subtitleEl = document.getElementById("tryon-blend-subtitle");
+
+    loadingEl.classList.remove("hidden");
+    resultImgEl.classList.add("hidden");
+    fallbackEl.classList.add("hidden");
+    manualControls.classList.add("hidden");
+    retryBtn.classList.add("hidden");
+
+    let mimeType = "image/jpeg";
+    let rawBase64 = userImgBase64;
+    const match = /^data:([^;]+);base64,(.*)$/.exec(userImgBase64 || "");
+    if (match) {
+        mimeType = match[1];
+    }
+
     try {
         const apiKey = localStorage.getItem("gemini_api_key") || "";
         const res = await fetch(`${API_BASE_URL}/api/try-on`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                image_base64: userImgBase64,
-                garment_id: garmentId,
-                gemini_api_key: apiKey
+                image_base64: rawBase64,
+                image_mime_type: mimeType,
+                garment_name: garmentName,
+                garment_description: catalogGarment.dynasty || "",
+                color_hex: (catalogGarment.colors && catalogGarment.colors[0]) || undefined,
+                apiKey: apiKey
             })
         });
 
-        if (!res.ok) throw new Error("Try-on analysis error");
         const data = await res.json();
 
-        const formattedText = window.marked ? window.marked.parse(data.analysis) : data.analysis;
-        analysisEl.innerHTML = formattedText;
+        if (data.needApiKey) {
+            openSettingsModal();
+        }
+
+        // Nhận xét bằng lời — luôn hiện, kể cả khi phần ảnh ghép lỗi
+        const formattedText = window.marked ? window.marked.parse(data.analysis || "") : (data.analysis || "");
+        analysisEl.innerHTML = formattedText || `<p>Bộ ${garmentName} rất hợp với thần thái của bạn!</p>`;
+
+        if (data.blended_image) {
+            // Thành công thật — hiện ảnh AI ghép, ẩn hoàn toàn chế độ thủ công cũ
+            resultImgEl.src = data.blended_image;
+            resultImgEl.classList.remove("hidden");
+            if (subtitleEl) subtitleEl.textContent = "Ảnh minh hoạ do Gemini AI ghép — chỉ mang tính tham khảo, không phải ảnh chụp thật";
+        } else {
+            kichHoatCheDoDuPhongThuCong(outfitPhoto_TuCatalog(catalogGarment), userImgBase64);
+        }
     } catch (err) {
-        analysisEl.innerHTML = `
-            <p>Khuôn mặt và diện mạo của bạn rất đoan trang và mang vẻ đẹp thuần khiết Á Đông, cực kỳ hài hòa khi hòa quyện vào tà <strong>${garmentName}</strong>. Tổng thể toát lên trọn vẹn nét tôn quý và khí chất Đại Việt!</p>
-        `;
+        console.warn("[Try-on]:", err.message);
+        analysisEl.innerHTML = `<p>Bộ ${garmentName} rất hợp với thần thái của bạn!</p>`;
+        kichHoatCheDoDuPhongThuCong(outfitPhoto_TuCatalog(catalogGarment), userImgBase64);
+    } finally {
+        loadingEl.classList.add("hidden");
     }
+}
+
+function outfitPhoto_TuCatalog(catalogGarment) {
+    return catalogGarment.photo || "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=800&q=80";
+}
+
+/** Bật lại giao diện cắt tròn thủ công cũ, chỉ dùng khi AI ghép ảnh lỗi. */
+function kichHoatCheDoDuPhongThuCong(outfitPhoto, userImgBase64) {
+    const fallbackEl = document.getElementById("tryon-blend-fallback");
+    const manualControls = document.getElementById("tryon-manual-controls");
+    const retryBtn = document.getElementById("tryon-retry-ai-btn");
+    const blendOutfitImg = document.getElementById("tryon-blend-outfit-img");
+    const blendFaceImg = document.getElementById("tryon-blend-face-img");
+    const subtitleEl = document.getElementById("tryon-blend-subtitle");
+
+    if (blendOutfitImg) blendOutfitImg.src = outfitPhoto;
+    if (blendFaceImg) blendFaceImg.src = userImgBase64;
+    if (subtitleEl) subtitleEl.textContent = "Chế độ thủ công (AI ghép ảnh không thành công lần này)";
+
+    fallbackEl.classList.remove("hidden");
+    manualControls.classList.remove("hidden");
+    retryBtn.classList.remove("hidden");
+    resetFacePosition();
+}
+
+/** Người dùng bấm "Thử ghép lại bằng AI" sau khi đã rơi vào chế độ dự phòng. */
+async function thuLaiGhepAnhAI() {
+    if (!currentTryOnGarmentId || !currentTryOnUserImage) return;
+    const catalogGarment = (window.STYLIST_CATALOG && window.STYLIST_CATALOG.garments.find(g => g.id === currentTryOnGarmentId)) || {};
+    const garmentName = catalogGarment.name || "Cổ Phục Việt Nam";
+    await goiApiGhepAnhThuTraiNghiem(currentTryOnGarmentId, garmentName, catalogGarment, currentTryOnUserImage);
 }
 
 function closeTryOnModal() {
@@ -1708,7 +1975,7 @@ function applyTryOnToStudio() {
 }
 
 function escapeHTML(str) {
-    return str.replace(/[&<>'"]/g,
+    return str.replace(/[&<>'"]/g, 
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
     );
 }
@@ -1735,22 +2002,3 @@ function getLocalConsultationFallback(query) {
         }
     };
 }
-
-
-// --- LIÊN KẾT SỰ KIỆN NÚT "TẠO PHỐI ĐỒ TRỌN BỘ" ---
-document.addEventListener("DOMContentLoaded", () => {
-    const form = document.getElementById("occasion-form");
-    const btn = document.getElementById("btn-tao-phoi-do") || document.querySelector('#occasion-form button[type="submit"]');
-
-    if (form) {
-        form.addEventListener("submit", (e) => {
-            handleOccasionSubmit(e);
-        });
-    }
-
-    if (btn && (!form || btn.type !== "submit")) {
-        btn.addEventListener("click", (e) => {
-            handleOccasionSubmit(e);
-        });
-    }
-});

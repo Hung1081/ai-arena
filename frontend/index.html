@@ -401,11 +401,70 @@
                 
                 <!-- Left: Dynamic Visualizer Avatar Stage (5 cols) -->
                 <div class="lg:col-span-5 space-y-4">
-                    <div class="visualizer-wrapper h-[560px] flex items-center justify-center p-4">
-                        <div id="avatar-stage" class="w-full h-full flex items-center justify-center">
-                            <!-- Injected SVG from TraditionalVisualizer -->
+                    <div class="visualizer-wrapper h-[560px] flex items-center justify-center p-4 relative overflow-hidden">
+                        <div class="absolute top-3 left-3 z-30 flex items-center gap-1 rounded-full border border-amber-300/70 bg-white/90 backdrop-blur-md p-1 shadow-md">
+                            <button type="button" id="studio-view-3d-btn" onclick="setStudioViewMode('3d')" class="studio-view-toggle active px-3 py-1.5 rounded-full text-[11px] font-bold transition flex items-center gap-1">
+                                <i data-lucide="box" class="w-3.5 h-3.5"></i>
+                                <span>Model 3D</span>
+                            </button>
+                            <button type="button" id="studio-view-ai-btn" onclick="openAIPreviewMode()" class="studio-view-toggle px-3 py-1.5 rounded-full text-[11px] font-bold transition flex items-center gap-1">
+                                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                                <span>Ảnh AI</span>
+                            </button>
+                        </div>
+
+                        <div id="avatar-stage-3d" class="w-full h-full relative" aria-live="polite">
+                            <div id="studio-3d-loading" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-amber-900 bg-amber-50/70 backdrop-blur-sm">
+                                <div class="w-8 h-8 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                                <span class="text-xs font-serif-vi">Đang dựng người mẫu 3D...</span>
+                            </div>
+                        </div>
+                        <div id="avatar-stage-ai" class="hidden w-full h-full relative overflow-hidden rounded-[22px] bg-stone-900" aria-live="polite">
+                            <img id="studio-ai-preview-image" src="" alt="Ảnh phối đồ do Gemini tạo" class="hidden w-full h-full object-contain">
+                            <button type="button" onclick="generateAIOutfitPreview(true)" class="absolute right-3 top-3 z-30 rounded-full border border-amber-300/60 bg-black/60 px-3 py-1.5 text-[11px] font-semibold text-amber-100 backdrop-blur-md hover:bg-black/80 transition">
+                                Tạo lại ảnh
+                            </button>
+                            <div id="studio-ai-preview-empty" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-stone-900 to-red-950 p-8 text-center text-amber-100">
+                                <i data-lucide="image-plus" class="w-12 h-12 text-amber-300 stroke-1"></i>
+                                <strong class="font-imperial text-lg">Ảnh Phối Đồ Gemini</strong>
+                                <p class="max-w-xs text-xs leading-relaxed text-stone-300">Đổi màu áo hoặc phụ kiện; ảnh cũ sẽ bị xoá và Gemini tạo một biến thể mới từ ảnh mẫu hiện tại.</p>
+                                <button type="button" onclick="generateAIOutfitPreview(true)" class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-stone-900 hover:bg-amber-400 transition">Tạo ảnh từ cấu hình này</button>
+                            </div>
+                            <div id="studio-ai-preview-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-3 bg-stone-950/90 text-amber-100">
+                                <div class="w-9 h-9 rounded-full border-4 border-amber-400 border-t-transparent animate-spin"></div>
+                                <strong class="text-sm">Gemini đang tạo ảnh mới...</strong>
+                                <span class="text-[11px] text-stone-300">Ảnh trước đã được giải phóng khỏi bộ nhớ</span>
+                            </div>
+                            <div id="studio-ai-preview-error" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-3 bg-stone-950/90 p-8 text-center text-amber-100">
+                                <i data-lucide="triangle-alert" class="w-9 h-9 text-amber-400"></i>
+                                <strong class="text-sm">Chưa thể tạo ảnh AI</strong>
+                                <span id="studio-ai-preview-error-text" class="max-w-xs text-[11px] leading-relaxed text-stone-300"></span>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="openSettingsModal()" class="rounded-xl border border-amber-400 px-3 py-2 text-[11px] font-semibold text-amber-200 hover:bg-amber-900/60">Mở Cài Đặt</button>
+                                    <button type="button" onclick="generateAIOutfitPreview(true)" class="rounded-xl bg-amber-500 px-3 py-2 text-[11px] font-bold text-stone-900 hover:bg-amber-400">Thử lại</button>
+                                </div>
+                            </div>
+                            <div id="studio-ai-preview-caption" class="hidden absolute bottom-3 left-3 right-3 rounded-xl bg-black/65 px-3 py-2 text-[11px] text-amber-100 backdrop-blur-sm"></div>
+                        </div>
+
+                        <div id="studio-3d-toolbar" class="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 hidden items-center gap-1.5 rounded-full border border-amber-300/70 bg-white/90 backdrop-blur-md px-2 py-1.5 shadow-md">
+                            <button type="button" onclick="reset3DStudioCamera()" class="px-2.5 py-1 rounded-full text-[11px] font-semibold text-stone-700 hover:bg-amber-100 transition flex items-center gap-1" title="Đưa camera về chính diện">
+                                <i data-lucide="scan-face" class="w-3.5 h-3.5"></i>
+                                <span>Chính diện</span>
+                            </button>
+                            <label class="px-2.5 py-1 rounded-full text-[11px] font-semibold text-stone-700 hover:bg-amber-100 transition flex items-center gap-1 cursor-pointer">
+                                <input id="studio-auto-rotate" type="checkbox" onchange="toggle3DAutoRotate(this.checked)" class="accent-red-800">
+                                <span>Tự xoay</span>
+                            </label>
                         </div>
                     </div>
+
+                    <p id="studio-3d-help" class="text-center text-[11px] text-stone-500 font-serif-vi">
+                        Kéo chuột để xoay • Cuộn để phóng to/thu nhỏ • Kéo dọc để nhìn từ trên xuống
+                    </p>
+                    <p id="studio-3d-detail-note" class="text-center text-[10px] text-amber-900/70 font-serif-vi">
+                        Model 3D dùng để xoay và chỉnh phom; Ảnh AI dùng ảnh mẫu thật để đổi màu, tóc và phụ kiện bằng Gemini.
+                    </p>
 
                     <div class="flex items-center space-x-3">
                         <button onclick="openExportModal()" class="flex-1 py-3 px-4 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-medium text-sm flex items-center justify-center space-x-2 shadow-md transition">
@@ -499,6 +558,41 @@
                                 <option value="tet_duoi_sam">Tóc tết đuôi sam</option>
                             </select>
                         </div>
+                    </div>
+
+                    <!-- 8. Body Measurements for the parametric 3D mannequin -->
+                    <div id="body-measurements-panel" class="space-y-3 rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/80 to-white p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-700 uppercase tracking-wider">8. Số Đo Người Mẫu 3D</label>
+                                <p class="mt-1 text-[11px] text-stone-500 font-serif-vi">Mesh cơ thể và y phục cùng co giãn theo số đo.</p>
+                            </div>
+                            <button type="button" onclick="resetBodyMeasurements()" class="shrink-0 px-2.5 py-1 rounded-lg border border-amber-300 bg-white text-[10px] font-semibold text-amber-900 hover:bg-amber-100 transition">Mặc định</button>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3">
+                            <label class="body-measure-control">
+                                <span><b>Chiều cao</b><output id="body-height-value">168 cm</output></span>
+                                <input id="body-height" type="range" min="145" max="195" value="168" step="1" oninput="updateBodyMeasurement('height', this.value)">
+                            </label>
+                            <label class="body-measure-control">
+                                <span><b>Cân nặng</b><output id="body-weight-value">58 kg</output></span>
+                                <input id="body-weight" type="range" min="38" max="120" value="58" step="1" oninput="updateBodyMeasurement('weight', this.value)">
+                            </label>
+                            <label class="body-measure-control">
+                                <span><b>Vòng ngực</b><output id="body-chest-value">86 cm</output></span>
+                                <input id="body-chest" type="range" min="70" max="125" value="86" step="1" oninput="updateBodyMeasurement('chest', this.value)">
+                            </label>
+                            <label class="body-measure-control">
+                                <span><b>Vòng eo</b><output id="body-waist-value">66 cm</output></span>
+                                <input id="body-waist" type="range" min="50" max="115" value="66" step="1" oninput="updateBodyMeasurement('waist', this.value)">
+                            </label>
+                            <label class="body-measure-control sm:col-span-2">
+                                <span><b>Vòng hông</b><output id="body-hip-value">92 cm</output></span>
+                                <input id="body-hip" type="range" min="72" max="135" value="92" step="1" oninput="updateBodyMeasurement('hip', this.value)">
+                            </label>
+                        </div>
+                        <p class="text-[10px] leading-relaxed text-stone-500 font-serif-vi">Bản hiện tại dùng mesh y phục tham số để mặc vừa theo người mẫu. Đây chưa phải mô phỏng vải vật lý theo thời gian thực.</p>
                     </div>
 
                     <!-- Cultural Insight Note -->
@@ -666,12 +760,10 @@
                         </div>
                     </div>
 
-                    <button id="btn-tao-phoi-do" type="submit" class="w-full py-3.5 px-6 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-bold text-sm tracking-wide shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2">
+                    <button type="submit" class="w-full py-3.5 px-6 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-bold text-sm tracking-wide shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2">
                         <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
                         <span>Tạo Phối Đồ Trọn Bộ (Áo + Quần + Giày + Túi + Khăn)</span>
                     </button>
-                    <!-- Error Message Display -->
-                    <div id="error-message" class="hidden p-3.5 bg-red-50 text-red-800 border border-red-200 rounded-2xl text-xs font-serif-vi text-center"></div>
                 </form>
 
                 <!-- Generator Results Box -->
@@ -688,6 +780,9 @@
     <!-- ============================================================= -->
     <div id="export-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="lacquer-card max-w-lg w-full p-6 space-y-4 relative bg-[#FFFDF9] rounded-3xl">
+            <button onclick="closeExportModal()" class="btn-modal-back" title="Quay lại" aria-label="Quay lại">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
             <button onclick="closeExportModal()" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -751,6 +846,9 @@
     <!-- ============================================================= -->
     <div id="tryon-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
         <div class="lacquer-card max-w-2xl w-full p-6 space-y-4 relative bg-[#FFFDF9] rounded-3xl max-h-[90vh] overflow-y-auto">
+            <button onclick="closeTryOnModal()" class="btn-modal-back" title="Quay lại" aria-label="Quay lại">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
             <button onclick="closeTryOnModal()" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -788,29 +886,48 @@
                     </div>
                 </div>
 
-                <!-- VIEW 1: Blended Try-on View (Canvas Ghép Ảnh Mặt vào Cổ Phục) -->
+                <!-- VIEW 1: Blended Try-on View — ƯU TIÊN ảnh ghép thật bằng Gemini.
+                     Trước đây view này CHỈ có cách cắt tròn khuôn mặt (CSS
+                     border-radius: 50%) đè lên ảnh nền — nhìn giả, không tự
+                     nhiên. Giờ gọi Gemini để sinh một ảnh ghép liền mạch;
+                     nếu AI lỗi (hết quota, mất mạng...) mới lùi về cách cũ
+                     như một phương án dự phòng, có ghi rõ đây là chế độ
+                     thủ công, không phải AI. -->
                 <div id="tryon-view-blend" class="space-y-3">
                     <div class="relative w-full max-w-md mx-auto aspect-[3/4] rounded-2xl overflow-hidden border-2 border-amber-400/90 shadow-2xl bg-stone-900 flex items-center justify-center">
-                        <!-- Background Outfit Image -->
-                        <img id="tryon-blend-outfit-img" src="" alt="Cổ Phục" class="absolute inset-0 w-full h-full object-cover">
 
-                        <!-- Face Overlay Container (Customizable position & blending) -->
-                        <div id="tryon-face-overlay-wrapper" class="absolute cursor-move transition-transform" style="top: 10%; left: 35%; width: 30%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; box-shadow: 0 0 15px rgba(0,0,0,0.35); border: 2px dashed rgba(212,175,55,0.85);">
-                            <img id="tryon-blend-face-img" src="" alt="Mặt của bạn" class="w-full h-full object-cover scale-110">
+                        <!-- Trạng thái: đang chờ Gemini sinh ảnh -->
+                        <div id="tryon-blend-loading" class="absolute inset-0 flex flex-col items-center justify-center space-y-3 text-amber-200 bg-stone-900/60">
+                            <div class="w-8 h-8 border-2 border-amber-300 border-t-transparent rounded-full animate-spin"></div>
+                            <span class="text-xs font-serif-vi">Gemini đang ghép ảnh, chờ khoảng 10-20 giây...</span>
+                        </div>
+
+                        <!-- Kết quả thật do Gemini sinh ra -->
+                        <img id="tryon-blend-result-img" src="" alt="Ảnh ghép AI" class="hidden absolute inset-0 w-full h-full object-cover">
+
+                        <!-- Phương án dự phòng: cắt tròn thủ công, chỉ hiện khi AI lỗi -->
+                        <div id="tryon-blend-fallback" class="hidden absolute inset-0">
+                            <img id="tryon-blend-outfit-img" src="" alt="Cổ Phục" class="absolute inset-0 w-full h-full object-cover">
+                            <div id="tryon-face-overlay-wrapper" class="absolute cursor-move transition-transform" style="top: 10%; left: 35%; width: 30%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; box-shadow: 0 0 15px rgba(0,0,0,0.35); border: 2px dashed rgba(212,175,55,0.85);">
+                                <img id="tryon-blend-face-img" src="" alt="Mặt của bạn" class="w-full h-full object-cover scale-110">
+                            </div>
+                            <div class="absolute top-3 left-3 right-3 p-2 bg-black/70 rounded-xl text-[11px] text-amber-200 text-center">
+                                ⚠️ AI ghép ảnh thất bại — đây là chế độ thủ công, kéo thanh trượt bên dưới để tự canh mặt.
+                            </div>
                         </div>
 
                         <!-- Badge Overlay with garment title -->
                         <div class="absolute bottom-3 left-3 right-3 p-3 bg-black/65 backdrop-blur-md rounded-2xl text-xs text-amber-200 border border-amber-500/30 flex items-center justify-between">
                             <div>
                                 <strong id="tryon-blend-title" class="block text-white text-sm font-imperial">Áo Dài Việt Nam</strong>
-                                <span class="text-[11px] text-amber-200/90 font-serif-vi">Kéo hoặc dùng thanh trượt dưới để tinh chỉnh vị trí mặt</span>
+                                <span id="tryon-blend-subtitle" class="text-[11px] text-amber-200/90 font-serif-vi">Ảnh minh hoạ do AI tạo — chỉ mang tính tham khảo</span>
                             </div>
                             <span class="red-seal text-[10px] hidden sm:inline-block">Đại Việt Tinh Hoa</span>
                         </div>
                     </div>
 
-                    <!-- Blending Adjuster Controls -->
-                    <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <!-- Thanh trượt tinh chỉnh — CHỈ hiện khi đang ở chế độ dự phòng thủ công -->
+                    <div id="tryon-manual-controls" class="hidden p-3 bg-amber-50/80 rounded-2xl border border-amber-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
                         <div class="flex items-center space-x-2">
                             <span class="text-stone-600 font-semibold text-[11px]">Kích thước mặt:</span>
                             <input type="range" id="face-scale-slider" min="60" max="160" value="100" oninput="adjustFaceScale(this.value)" class="w-24 accent-red-800">
@@ -827,6 +944,9 @@
                             Đặt Lại
                         </button>
                     </div>
+                    <button type="button" onclick="thuLaiGhepAnhAI()" id="tryon-retry-ai-btn" class="hidden w-full text-center py-2 rounded-xl bg-red-800 hover:bg-red-900 text-amber-100 text-xs font-semibold transition">
+                        🔄 Thử ghép lại bằng AI
+                    </button>
                 </div>
 
                 <!-- VIEW 2: Side-by-Side Comparison View -->
@@ -880,6 +1000,9 @@
     <!-- ============================================================= -->
     <div id="settings-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="lacquer-card max-w-md w-full p-6 space-y-4 relative bg-[#FFFDF9] rounded-3xl">
+            <button onclick="closeSettingsModal()" class="btn-modal-back" title="Quay lại" aria-label="Quay lại">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
             <button onclick="closeSettingsModal()" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -890,6 +1013,8 @@
             </div>
 
             <div class="space-y-4 text-xs font-serif-vi text-stone-600 leading-relaxed">
+                <p id="settings-first-run-hint" class="hidden text-xs font-sans font-semibold text-red-800 bg-red-50 border border-red-200 rounded-xl p-3"></p>
+
                 <div class="p-3.5 bg-gradient-to-r from-amber-50 to-amber-100/70 rounded-2xl border border-amber-300">
                     <p class="font-semibold text-amber-950 mb-1 flex items-center space-x-1.5">
                         <i data-lucide="sparkles" class="w-4 h-4 text-amber-600 inline"></i>
@@ -913,6 +1038,9 @@
             </div>
 
             <div class="flex items-center justify-end space-x-2 pt-2">
+                <button onclick="closeSettingsModal()" class="py-2 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 font-medium text-xs transition">
+                    Bỏ Qua
+                </button>
                 <button onclick="saveSettings()" class="py-2 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-amber-100 font-medium text-xs shadow transition">
                     Lưu Cài Đặt
                 </button>
@@ -920,9 +1048,18 @@
         </div>
     </div>
 
+    <!-- Three.js is served locally by backend/server.js; no external CDN is required. -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "/vendor/three/build/three.module.js",
+                "three/addons/": "/vendor/three/examples/jsm/"
+            }
+        }
+    </script>
+
     <!-- Scripts with cache-busting -->
     <script src="/static/js/catalog-data.js?v=20260921_tryon"></script>
-    <script src="/static/js/visualizer.js?v=20260921_tryon"></script>
-    <script src="/static/js/app.js?v=20260921_tryon"></script>
+    <script src="/static/js/app.js?v=20261007_ankle_forward_v74"></script>
 </body>
 </html>

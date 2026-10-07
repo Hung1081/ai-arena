@@ -6,6 +6,9 @@ const dotenv = require('dotenv');
 const axios = require('axios');
 const FormData = require('form-data');
 const { GoogleGenAI } = require('@google/genai');
+const { taoGoiYPhoiDo } = require('./stylistEngine');
+const { ghepAnhTrangPhuc, taoAnhBienThePhoiDo } = require('./imageBlend');
+const { layDanhSachKhoaDuPhong, coKhoaDuPhong, goiGeminiXoayVongKhoa } = require('./geminiPool');
 
 // 1. Tải biến môi trường từ file .env
 dotenv.config();
@@ -40,6 +43,9 @@ app.use((req, res, next) => {
 const frontendDir = path.join(__dirname, '../frontend');
 app.use(express.static(frontendDir));
 app.use('/static', express.static(frontendDir));
+// Three.js được phục vụ cục bộ từ dependency đã khóa phiên bản trong
+// package-lock.json. Studio 3D vì thế không phụ thuộc CDN bên ngoài.
+app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three')));
 
 // 4. Cấu hình Multer để nhận file ảnh upload dưới dạng Buffer trong bộ nhớ
 const storage = multer.memoryStorage();
@@ -138,17 +144,10 @@ app.post('/api/analyze-fashion', upload.single('image'), async (req, res) => {
       });
     }
 
-    // 6.2 Lấy Gemini API Key từ client gửi lên hoặc từ biến môi trường .env
+    // 6.2 Lấy Gemini API Key do người dùng tự nhập (nếu có) — không còn
+    // chặn ngay ở đây nữa: nếu người dùng chưa nhập khoá, hàm xoay vòng
+    // bên dưới sẽ tự thử các khoá dự phòng của dự án trước khi báo lỗi.
     const clientApiKey = req.body.apiKey || req.headers['x-gemini-api-key'];
-    let apiKey = (clientApiKey && clientApiKey.trim()) || process.env.GEMINI_API_KEY;
-
-    if (!apiKey || apiKey === 'YOUR_API_KEY' || apiKey.trim() === '') {
-      return res.status(400).json({
-        success: false,
-        needApiKey: true,
-        message: 'Chưa cấu hình GEMINI_API_KEY hợp lệ! Bạn hãy nhập API Key vào ô trên trang web hoặc cập nhật vào file backend/.env để Cô Tư kết nối với trí tuệ nhân tạo Gemini nhé.'
-      });
-    }
 
     // 6.3 Trích xuất thông tin prompt và dịp mặc
     const userPrompt = req.body.prompt || req.body.occasion || 'Dạo phố và chụp ảnh kỷ niệm phong cách cổ truyền';
@@ -171,41 +170,27 @@ Yêu cầu & Dịp mặc mong muốn: "${userPrompt}"
 Cô Tư hãy quan sát vóc dáng, thần thái và tư vấn giúp tôi bộ Cổ Phục Việt Nam phù hợp nhất, kèm cách phối màu, chất liệu, phụ kiện và dáng chụp ảnh nhé.
 `;
 
-    // 6.5 Khởi tạo GoogleGenAI client với @google/genai SDK
-    const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-
-    // 6.6 Gửi yêu cầu sang Gemini API
-    // Ưu tiên gemini-1.5-flash theo yêu cầu, có hỗ trợ fallback dự phòng
-    const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+    // 6.5 Gửi yêu cầu sang Gemini API — tự xoay vòng qua nhiều model VÀ
+    // nhiều khoá (khoá người dùng trước, hết thì tới khoá dự phòng dự án).
     let aiResponseText = null;
-    let successfulModel = '';
-    let apiError = null;
-
-    for (const modelName of modelsToTry) {
-      try {
-        console.log(`[Cô Tư Cổ Phục] Đang kết nối mô hình: ${modelName}...`);
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: [
-            { text: CO_TU_SYSTEM_INSTRUCTION },
-            imagePart,
-            { text: textPrompt }
-          ]
+    let successfulModel = 'gemini (xoay vòng)';
+    try {
+      const ketQua = await goiGeminiXoayVongKhoa(
+        GoogleGenAI,
+        clientApiKey,
+        ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'],
+        [{ text: CO_TU_SYSTEM_INSTRUCTION }, imagePart, { text: textPrompt }],
+      );
+      aiResponseText = ketQua.text;
+    } catch (err) {
+      if (err.maLoi === 'CHUA_CO_KHOA') {
+        return res.status(400).json({
+          success: false,
+          needApiKey: true,
+          message: 'Chưa cấu hình khoá Gemini nào! Bạn hãy nhập API Key vào ô Cài Đặt trên trang web nhé.',
         });
-
-        if (response && response.text) {
-          aiResponseText = response.text;
-          successfulModel = modelName;
-          break;
-        }
-      } catch (err) {
-        console.warn(`[Cô Tư Cổ Phục] Mô hình ${modelName} gặp sự cố:`, err.message || err);
-        apiError = err;
       }
-    }
-
-    if (!aiResponseText) {
-      throw new Error(apiError ? (apiError.message || String(apiError)) : 'Không nhận được dữ liệu từ Gemini API.');
+      throw err;
     }
 
     // 6.7 Parse JSON kết quả
@@ -324,17 +309,7 @@ app.post('/api/chat', async (req, res) => {
   try {
     const query = req.body.query || 'Tư vấn cổ phục Việt Nam phù hợp';
     const clientApiKey = req.body.gemini_api_key || req.body.apiKey || req.headers['x-gemini-api-key'];
-    const apiKey = (clientApiKey && clientApiKey.trim()) || process.env.GEMINI_API_KEY;
 
-    if (!apiKey || apiKey === 'YOUR_API_KEY' || apiKey.trim() === '') {
-      return res.status(400).json({
-        success: false,
-        needApiKey: true,
-        message: 'Chưa cấu hình GEMINI_API_KEY! Bạn hãy dán API Key vào ô Cài Đặt trên web hoặc cập nhật file .env nhé.'
-      });
-    }
-
-    const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
     const contents = [{ text: CO_TU_SYSTEM_INSTRUCTION }];
 
     if (req.body.image_base64) {
@@ -352,26 +327,24 @@ app.post('/api/chat', async (req, res) => {
       text: `Người dùng hỏi: "${query}". Hãy tư vấn chi tiết và trả về định dạng JSON theo đúng hướng dẫn.`
     });
 
-    const candidateModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'];
     let aiResponseText = null;
-
-    for (const model of candidateModels) {
-      try {
-        const result = await ai.models.generateContent({
-          model: model,
-          contents: contents
+    try {
+      const ketQua = await goiGeminiXoayVongKhoa(
+        GoogleGenAI,
+        clientApiKey,
+        ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'],
+        contents,
+      );
+      aiResponseText = ketQua.text;
+    } catch (err) {
+      if (err.maLoi === 'CHUA_CO_KHOA') {
+        return res.status(400).json({
+          success: false,
+          needApiKey: true,
+          message: 'Chưa cấu hình GEMINI_API_KEY! Bạn hãy dán API Key vào ô Cài Đặt trên web hoặc cập nhật file .env nhé.'
         });
-        if (result && result.text) {
-          aiResponseText = result.text;
-          break;
-        }
-      } catch (e) {
-        console.warn(`[Chat Model ${model}]:`, e.message);
       }
-    }
-
-    if (!aiResponseText) {
-      throw new Error('Không thể kết nối với Gemini API lúc này.');
+      throw err;
     }
 
     let cleanText = aiResponseText.trim();
@@ -395,8 +368,8 @@ app.post('/api/chat', async (req, res) => {
     if (lowerName.includes("tấc") || lowerName.includes("thụng") || lowerName.includes("ngũ thân")) garmentId = "ngu_than";
     else if (lowerName.includes("nhật bình")) garmentId = "nhat_binh";
     else if (lowerName.includes("tứ thân") || lowerName.includes("yếm")) garmentId = "tu_than";
-    else if (lowerName.includes("bà ba")) garmentId = "ba_ba";
-    else if (lowerName.includes("thổ cẩm")) garmentId = "tho_cam";
+    else if (lowerName.includes("bà ba")) garmentId = "ao_ba_ba";
+    else if (lowerName.includes("thổ cẩm")) garmentId = "trang_phuc_dan_toc";
 
     const paletteHex = parsed?.costumeDetails?.colorPalette?.map(c => c.hex) || ["#9E1A1A", "#D4AF37", "#1A5336"];
     const paletteNames = parsed?.costumeDetails?.colorPalette?.map(c => c.name) || ["Đỏ Chu Sa", "Hoàng Cúc", "Ngọc Bích"];
@@ -452,179 +425,219 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// ─── Bản đồ tên hiển thị cho dịp & vibe ─────────────────────────────────────
-const OCCASION_LABELS = {
-  tet: 'Tết (Du xuân, chúc Tết, sum vầy)',
-  le_chua: 'Lễ / Chùa (Trang nghiêm, thắp hương)',
-  cuoi_hoi: 'Cưới hỏi (Vu quy, đính hôn)',
-  le_hoi: 'Lễ hội truyền thống (Hội Lim, Đền Hùng)',
-  chup_anh: 'Chụp ảnh (Cố đô Huế, Phố cổ Hội An)',
-  truong_hoc: 'Đi học / Sự kiện trường (Kỷ yếu, tốt nghiệp)',
-  hang_ngay: 'Hằng ngày (Dạo phố, cà phê, đi làm cổ phong)'
-};
-const VIBE_LABELS = {
-  thanh_lich: 'Thanh Lịch (Trang nhã, đoan trang)',
-  co_dien: 'Cổ Điển (Hoài niệm, cung đình xưa)',
-  toi_gian: 'Tối Giản (Gọn gàng, tinh tế)',
-  ca_tinh: 'Cá Tính (Độc bản, nổi bật)',
-  nu_tinh: 'Nữ Tính (Mềm mại, dịu dàng)'
-};
-const GARMENT_LABELS = {
-  auto: 'Tự động – Nghệ nhân phối hòa hợp nhất',
-  ao_dai: 'Áo Dài Việt Nam',
-  ngu_than: 'Áo Ngũ Thân (Tay Chẽn / Áo Tấc)',
-  tu_than: 'Áo Tứ Thân & Yếm Đào',
-  nhat_binh: 'Áo Nhật Bình',
-  ao_ba_ba: 'Áo Bà Ba & Khăn Rằn',
-  trang_phuc_dan_toc: 'Trang Phục Dân Tộc Thổ Cẩm'
-};
-const GENDER_LABELS = { nu: 'Nữ giới', nam: 'Nam giới' };
-
-/**
- * Hàm tạo prompt ép Gemini trả về JSON thuần – không markdown
- */
-function buildOccasionPrompt(occasion, vibe, gender, garmentPref) {
-  const occasionLabel = OCCASION_LABELS[occasion] || occasion;
-  const vibeLabel = VIBE_LABELS[vibe] || vibe;
-  const genderLabel = GENDER_LABELS[gender] || gender;
-  const garmentLabel = (garmentPref && garmentPref !== 'auto') ? (GARMENT_LABELS[garmentPref] || garmentPref) : null;
-
-  return `Bạn là "Cô Tư Cổ Phục" – chuyên gia tư vấn y phục truyền thống Việt Nam (Đại Việt). Giọng văn trang nhã, uyên thâm.
-Người dùng cung cấp thông tin sau:
-- Dịp / Hoàn cảnh: "${occasionLabel}"
-- Vibe cá nhân: "${vibeLabel}"
-- Giới tính: "${genderLabel}"
-- Y phục ưu tiên: "${garmentLabel || 'Tự động – chọn loại phù hợp nhất'}"
-
-Hãy tư vấn một bộ trang phục truyền thống Việt Nam hoàn chỉnh, chuẩn mực điển lễ.
-
-QUY TẮC BẮT BUỘC:
-1. Chỉ trả về DUY NHẤT một đối tượng JSON hợp lệ. KHÔNG viết bất kỳ chữ nào ngoài JSON.
-2. KHÔNG bọc trong markdown \`\`\`json ... \`\`\`.
-3. Tất cả giá trị bằng tiếng Việt, ngắn gọn, cụ thể, đúng lịch sử.
-4. palette phải là mảng 3 mã màu HEX hợp lệ. palette_names phải có 3 tên tương ứng.
-5. garment_id phải là một trong: ao_dai / ngu_than / tu_than / nhat_binh / ba_ba / tho_cam.
-
-JSON BẮT BUỘC (đúng cấu trúc, không thêm bớt trường):
-{"title":"...","garment_name":"...","garment_id":"...","dynasty":"...","vibe":"...","shirt_color":"...","palette":["#HEX1","#HEX2","#HEX3"],"palette_names":["Tên1","Tên2","Tên3"],"bottom":"...","shoes":"...","bag":"...","headdress":"...","jewelry":"...","hairstyle":"...","fabric":"...","etiquette_tip":"..."}`;
-}
-
-/**
- * Hàm gọi Gemini và normalize kết quả
- */
-async function callGeminiForOutfit(prompt, apiKey) {
-  const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-  const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'];
-  let rawText = null;
-
-  for (const model of modelsToTry) {
-    try {
-      const result = await ai.models.generateContent({ model, contents: [{ text: prompt }] });
-      if (result && result.text) { rawText = result.text; console.log(`[Outfit] OK: ${model}`); break; }
-    } catch (e) { console.warn(`[Outfit] ${model}:`, e.message); }
-  }
-
-  if (!rawText) throw new Error('Không thể kết nối Gemini API. Kiểm tra API Key và thử lại.');
-
-  // Làm sạch markdown wrapper
-  let clean = rawText.trim();
-  if (clean.startsWith('```json')) clean = clean.slice(7);
-  else if (clean.startsWith('```')) clean = clean.slice(3);
-  if (clean.endsWith('```')) clean = clean.slice(0, -3);
-  clean = clean.trim();
-
-  let look;
-  try { look = JSON.parse(clean); }
-  catch (e) { throw new Error('Gemini trả về dữ liệu không hợp lệ. Vui lòng thử lại.'); }
-
-  // Chuẩn hóa garment_id
-  const validIds = ['ao_dai', 'ngu_than', 'tu_than', 'nhat_binh', 'ba_ba', 'tho_cam'];
-  if (!validIds.includes(look.garment_id)) {
-    const nm = (look.garment_name || '').toLowerCase();
-    if (nm.includes('ngũ thân') || nm.includes('tấc')) look.garment_id = 'ngu_than';
-    else if (nm.includes('nhật bình')) look.garment_id = 'nhat_binh';
-    else if (nm.includes('tứ thân') || nm.includes('yếm')) look.garment_id = 'tu_than';
-    else if (nm.includes('bà ba')) look.garment_id = 'ba_ba';
-    else if (nm.includes('thổ cẩm') || nm.includes('dân tộc')) look.garment_id = 'tho_cam';
-    else look.garment_id = 'ao_dai';
-  }
-
-  // Đảm bảo palette hợp lệ
-  if (!Array.isArray(look.palette) || look.palette.length < 3) look.palette = ['#9E1A1A', '#D4AF37', '#1A5336'];
-  if (!Array.isArray(look.palette_names) || look.palette_names.length < 3) look.palette_names = ['Đỏ Son', 'Hoàng Kim', 'Ngọc Bích'];
-
-  return look;
-}
-
-/**
- * Route POST /api/recommend
- * Endpoint chính cho "Gợi Ý Theo Dịp & Vibe Cá Nhân"
- */
-app.post('/api/recommend', async (req, res) => {
+// ============================================================
+// /api/recommend — Gợi Ý Dịp & Vibe
+// TRƯỚC ĐÂY: route này hoàn toàn không tồn tại trong server.js (chỉ có ở
+// backend/main.py, vốn không được run.sh khởi động) — mọi yêu cầu từ tab
+// "Gợi Ý Dịp & Vibe" đều rơi vào 404, và vì lỗi đó KHÔNG liên quan gì đến
+// khoá Gemini nên có nhập khoá đúng cũng không giúp được gì.
+//
+// Route này CHẠY BẰNG LUẬT CỐ ĐỊNH (stylistEngine.js), không gọi Gemini —
+// nhờ vậy tab này hoạt động ngay cả khi chưa cấu hình khoá API nào.
+// ============================================================
+app.post('/api/recommend', (req, res) => {
   try {
-    const clientApiKey = req.body.gemini_api_key || req.body.apiKey || req.headers['x-gemini-api-key'];
-    const apiKey = (clientApiKey && clientApiKey.trim()) || process.env.GEMINI_API_KEY;
-
-    if (!apiKey || apiKey === 'YOUR_API_KEY' || !apiKey.trim()) {
-      return res.status(400).json({ success: false, needApiKey: true, message: 'Chưa cấu hình GEMINI_API_KEY.' });
-    }
-
-    const prompt = buildOccasionPrompt(
-      req.body.occasion || 'tet',
-      req.body.vibe || 'thanh_lich',
-      req.body.gender || 'nu',
-      req.body.element || 'auto'
-    );
-
-    const look = await callGeminiForOutfit(prompt, apiKey);
-    return res.json({ success: true, look_card: look, message: 'Cô Tư đã hoàn tất gợi ý phối đồ!' });
-
-  } catch (err) {
-    console.error('[/api/recommend]:', err.message);
-    return res.status(500).json({ success: false, message: err.message || 'Lỗi khi tạo gợi ý phối đồ.' });
+    const { occasion, gender, vibe, element, query } = req.body || {};
+    const ketQua = taoGoiYPhoiDo({ occasion, gender, vibe, element, query });
+    return res.json({ success: true, ...ketQua });
+  } catch (error) {
+    console.error('[Recommend Error]:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Lỗi tạo gợi ý phối đồ.' });
   }
 });
 
-/**
- * Route POST /api/generate-outfit (tương thích thêm với cú pháp yêu cầu trước)
- */
-app.post('/api/generate-outfit', async (req, res) => {
+// ============================================================
+// /api/try-on — Phòng Thử Cổ Phục (phân tích + ghép ảnh thật)
+// TRƯỚC ĐÂY: route này cũng không tồn tại trong server.js, nên phần "phân
+// tích Gemini Vision" trong modal luôn rơi vào catch() và hiển thị đúng
+// một câu nhận xét dựng sẵn — trông như AI trả lời nhưng thực chất chưa
+// bao giờ gọi được Gemini. Phần ảnh ghép trước đây KHÔNG dùng AI: chỉ là
+// một khối div bo tròn (border-radius: 50%) đặt đè ảnh mặt lên ảnh nền
+// trang phục, kéo được bằng tay — đây là route mới thay thế bằng ảnh ghép
+// thật từ Gemini.
+// ============================================================
+app.post('/api/try-on', async (req, res) => {
   try {
-    const clientApiKey = req.body.gemini_api_key || req.body.apiKey || req.headers['x-gemini-api-key'];
-    const apiKey = (clientApiKey && clientApiKey.trim()) || process.env.GEMINI_API_KEY;
+    const {
+      image_base64: anhGoc,
+      image_mime_type: mimeGoc,
+      garment_name: tenTrangPhuc,
+      garment_description: moTaTrangPhuc,
+      color_hex: mauSac,
+    } = req.body || {};
 
-    if (!apiKey || apiKey === 'YOUR_API_KEY' || !apiKey.trim()) {
-      return res.status(400).json({ success: false, needApiKey: true, message: 'Chưa cấu hình GEMINI_API_KEY.' });
+    const clientApiKey = req.body.apiKey || req.headers['x-gemini-api-key'];
+
+    if (!anhGoc) {
+      return res.status(400).json({ success: false, message: 'Thiếu ảnh chân dung để thử đồ.' });
     }
 
-    const prompt = buildOccasionPrompt(
-      req.body.occasion || req.body.dip || 'tet',
-      req.body.vibe || req.body.vibe_ca_nhan || 'thanh_lich',
-      req.body.gender || req.body.gioi_tinh || 'nu',
-      req.body.element || req.body.y_phuc || 'auto'
-    );
+    let anhBase64Sach = anhGoc;
+    if (anhBase64Sach.includes(',')) anhBase64Sach = anhBase64Sach.split(',')[1];
 
-    const look = await callGeminiForOutfit(prompt, apiKey);
+    // (1) Phân tích bằng văn bản — xoay vòng khoá như /api/chat
+    let phanTich = 'Khuôn mặt và diện mạo của bạn rất đoan trang, phù hợp với tông màu trầm cổ điển.';
+    try {
+      const contents = [
+        {
+          inlineData: { data: anhBase64Sach, mimeType: mimeGoc || 'image/jpeg' },
+        },
+        {
+          text:
+            `Hãy nhận xét ngắn gọn (2-3 câu, tiếng Việt) về việc gương mặt trong ảnh hợp với ` +
+            `bộ ${tenTrangPhuc || 'cổ phục Việt Nam'} như thế nào — tông da, thần thái, gợi ý dáng chụp.`,
+        },
+      ];
+      const kq = await goiGeminiXoayVongKhoa(
+        GoogleGenAI,
+        clientApiKey,
+        ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'],
+        contents,
+      );
+      phanTich = kq.text.trim();
+    } catch (e) {
+      console.warn('[Try-on phân tích]:', e.message);
+      if (e.maLoi === 'CHUA_CO_KHOA') {
+        return res.status(400).json({
+          success: false,
+          needApiKey: true,
+          message: 'Chưa cấu hình khoá Gemini nào — hãy nhập khoá của bạn ở mục Cài Đặt.',
+        });
+      }
+      // Các lỗi khác: vẫn tiếp tục với câu nhận xét mặc định, không chặn ghép ảnh.
+    }
 
-    // Cấu trúc outfit_plan (tương thích với spec user đã yêu cầu)
-    const outfitPlan = {
-      ao: `${look.garment_name || 'Áo Dài'} – ${look.shirt_color || 'Đỏ son'}`,
-      quan_vay: look.bottom || 'Quần lụa trắng ống thụng',
-      giay: look.shoes || 'Guốc mộc quai nhung',
-      tui: look.bag || 'Túi cói quai tròn',
-      khan_non: look.headdress || 'Khăn vành dây'
-    };
+    // (2) Ghép ảnh thật — ưu tiên khoá người dùng, rồi tới khoá dự phòng
+    const cacKhoaThu = [
+      ...(clientApiKey && clientApiKey.trim() ? [clientApiKey.trim()] : []),
+      ...layDanhSachKhoaDuPhong(),
+    ];
+
+    let ketQuaAnh = { base64: null, mimeType: null, loi: 'Chưa có khoá Gemini nào để ghép ảnh.' };
+    for (const khoa of cacKhoaThu) {
+      ketQuaAnh = await ghepAnhTrangPhuc(
+        GoogleGenAI,
+        khoa,
+        { base64: anhBase64Sach, mimeType: mimeGoc || 'image/jpeg' },
+        {
+          garmentName: tenTrangPhuc || 'Áo Dài truyền thống Việt Nam',
+          description: moTaTrangPhuc || '',
+          colorHex: mauSac,
+        },
+      );
+      if (ketQuaAnh.base64) break;
+    }
 
     return res.json({
       success: true,
-      outfit_plan: outfitPlan,
-      look_card: look,
-      loi_khuyen: look.etiquette_tip || 'Phong thái đoan trang, khoan thai tôn lên cốt cách Đại Việt.',
-      message: 'Cô Tư đã hoàn tất phối đồ!'
+      analysis: phanTich,
+      blended_image: ketQuaAnh.base64
+        ? `data:${ketQuaAnh.mimeType};base64,${ketQuaAnh.base64}`
+        : null,
+      blend_error: ketQuaAnh.base64 ? null : ketQuaAnh.loi,
     });
-  } catch (err) {
-    console.error('[/api/generate-outfit]:', err.message);
-    return res.status(500).json({ success: false, message: err.message });
+  } catch (error) {
+    console.error('[Try-on Error]:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Lỗi xử lý thử đồ.' });
+  }
+});
+
+// ============================================================
+// /api/generate-outfit-preview — tạo ảnh biến thể từ ảnh mẫu hiện tại.
+// Ảnh không được lưu trên server; response luôn no-store. Frontend chỉ giữ
+// một Object URL và thu hồi nó ngay khi người dùng đổi lựa chọn.
+// ============================================================
+app.post('/api/generate-outfit-preview', async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+
+  try {
+    const { source_image_url: sourceImageUrl, options = {} } = req.body || {};
+    const clientApiKey = req.body.apiKey || req.headers['x-gemini-api-key'];
+    const cacKhoaThu = [
+      ...(clientApiKey && clientApiKey.trim() ? [clientApiKey.trim()] : []),
+      ...layDanhSachKhoaDuPhong(),
+    ];
+
+    if (cacKhoaThu.length === 0) {
+      return res.status(400).json({
+        success: false,
+        needApiKey: true,
+        message: 'Cần khoá Gemini để tạo ảnh phối đồ. Hãy nhập khoá trong Cài Đặt.',
+      });
+    }
+
+    if (!sourceImageUrl) {
+      return res.status(400).json({ success: false, message: 'Thiếu ảnh mẫu nguồn.' });
+    }
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(sourceImageUrl);
+    } catch {
+      return res.status(400).json({ success: false, message: 'Địa chỉ ảnh mẫu không hợp lệ.' });
+    }
+    const allowedImageHosts = new Set(['commons.wikimedia.org', 'upload.wikimedia.org']);
+    if (parsedUrl.protocol !== 'https:' || !allowedImageHosts.has(parsedUrl.hostname)) {
+      return res.status(400).json({ success: false, message: 'Nguồn ảnh mẫu chưa được cho phép.' });
+    }
+    if (parsedUrl.hostname === 'commons.wikimedia.org' && parsedUrl.pathname.includes('/Special:FilePath/')) {
+      parsedUrl.searchParams.set('width', '1200');
+    }
+
+    const imageResponse = await axios.get(parsedUrl.toString(), {
+      responseType: 'arraybuffer',
+      timeout: 20000,
+      maxContentLength: 12 * 1024 * 1024,
+      maxBodyLength: 12 * 1024 * 1024,
+      headers: { 'User-Agent': 'VietPhucRemix/1.0 image-reference' },
+    });
+    const mimeType = String(imageResponse.headers['content-type'] || 'image/jpeg').split(';')[0];
+    if (!mimeType.startsWith('image/')) {
+      return res.status(400).json({ success: false, message: 'Nguồn tham chiếu không phải ảnh.' });
+    }
+    const sourceBase64 = Buffer.from(imageResponse.data).toString('base64');
+
+    let ketQuaAnh = { base64: null, mimeType: null, loi: 'Không thể tạo ảnh biến thể.' };
+    for (const khoa of cacKhoaThu) {
+      ketQuaAnh = await taoAnhBienThePhoiDo(
+        GoogleGenAI,
+        khoa,
+        { base64: sourceBase64, mimeType },
+        options,
+      );
+      if (ketQuaAnh.base64) break;
+    }
+
+    if (!ketQuaAnh.base64) {
+      const rawError = String(ketQuaAnh.loi || 'Gemini không trả về ảnh.');
+      if (/429|RESOURCE_EXHAUSTED|quota exceeded/i.test(rawError)) {
+        const retryMatch = rawError.match(/retry in\s+([^"\\]+)/i);
+        const retryAfter = retryMatch ? retryMatch[1].trim().replace(/[.]+$/, '') : '';
+        return res.status(429).json({
+          success: false,
+          code: 'GEMINI_IMAGE_QUOTA_EXHAUSTED',
+          message: `Google từ chối quota tạo ảnh của project (429)${retryAfter ? `; mốc thử lại do Google trả về là ${retryAfter}` : ''}. Gemini Image API không có Free Tier; reset quota hoặc Gemini Edu trong ứng dụng Gemini không cấp quota API. Hãy bật billing/Prepay cho đúng Google Cloud project của API key trong Google AI Studio.`,
+        });
+      }
+      if (/API_KEY_INVALID|API key not valid|PERMISSION_DENIED|403/i.test(rawError)) {
+        return res.status(401).json({
+          success: false,
+          code: 'GEMINI_KEY_INVALID',
+          message: 'Khóa Gemini không hợp lệ hoặc chưa được cấp quyền dùng model tạo ảnh.',
+        });
+      }
+      return res.status(502).json({ success: false, message: rawError });
+    }
+
+    return res.json({
+      success: true,
+      generated_image: `data:${ketQuaAnh.mimeType};base64,${ketQuaAnh.base64}`,
+      generated_model: ketQuaAnh.model || null,
+    });
+  } catch (error) {
+    console.error('[Generate Outfit Preview Error]:', error.message);
+    return res.status(500).json({ success: false, message: error.message || 'Lỗi tạo ảnh phối đồ.' });
   }
 });
 
@@ -634,7 +647,11 @@ app.get('/api/health', (req, res) => {
     status: 'online',
     server: 'Cô Tư Cổ Phục Stylist API',
     nodeVersion: process.version,
-    geminiKeyConfigured: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'YOUR_API_KEY')
+    geminiKeyConfigured: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'YOUR_API_KEY'),
+    // Số khoá dự phòng phía server — CHỈ trả về số lượng, không bao giờ
+    // trả về nội dung khoá. Frontend dùng con số này để quyết định có cần
+    // bật popup xin khoá lúc mở app lần đầu hay không (mục #8).
+    soKhoaDuPhong: layDanhSachKhoaDuPhong().length,
   });
 });
 
