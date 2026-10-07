@@ -77,27 +77,45 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def custom_global_exception_handler(request: Request, exc: Exception):
-    if request.url.path == "/api/generate-outfit-preview":
+    path = request.url.path
+    err_str = str(exc)[:120]
+    print(f"[UNHANDLED EXCEPTION] {path}: {type(exc).__name__}: {err_str}")
+
+    # Endpoint tạo ảnh: trả về JSON + Pollinations fallback thay vì HTML 500/502
+    if path == "/api/generate-outfit-preview":
         fallback_prompt = "hyper-realistic, photorealistic 8k resolution, cinematic lighting, professional studio photography, Vietnamese traditional dress Ao Dai, 85mm lens"
         enc = urllib.parse.quote(fallback_prompt, safe="")
-        fallback_url = f"https://image.pollinations.ai/prompt/{enc}"
+        fallback_url = f"https://image.pollinations.ai/prompt/{enc}?seed={random.randint(100,9999)}&width=768&height=1024&nologo=true"
+        err_code = "GEMINI_IMAGE_QUOTA_EXHAUSTED" if any(
+            kw in err_str.lower() for kw in ["quota", "429", "rate limit", "resource exhausted"]
+        ) else "SERVER_ERROR"
         return JSONResponse(
             status_code=200,
             content={
                 "success": False,
                 "status": "fallback",
-                "message": f"Dịch vụ AI đang bận hoặc quá tải, đã tự động dùng chế độ dự phòng an toàn ({str(exc)[:100]}).",
+                "code": err_code,
+                "message": f"Dịch vụ AI đang bận hoặc quá tải, đã tự động dùng chế độ dự phòng an toàn ({err_str}).",
                 "image_url": fallback_url,
                 "generated_image": fallback_url,
                 "generated_model": "pollinations-fallback",
                 "english_prompt": fallback_prompt
             }
         )
-    if request.url.path.startswith("/api/"):
+
+    # Tất cả /api/ khác: trả JSON thay vì HTML
+    if path.startswith("/api/"):
         return JSONResponse(
             status_code=200,
-            content={"success": False, "status": "error", "message": f"Lỗi xử lý API: {str(exc)}", "code": 500}
+            content={
+                "success": False,
+                "status": "error",
+                "message": f"Lỗi xử lý API: {err_str}",
+                "code": "SERVER_ERROR"
+            }
         )
+
+    # Non-API routes: trả 500 HTML bình thường
     return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 engine = TraditionalStylistEngine()
@@ -1185,28 +1203,32 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
             vibe=vibe_val
         )
 
-        # 4. Tải ảnh mẫu nguồn nếu có
+        # 4. Tải ảnh mẫu nguồn nếu có — chạy trong executor để tránh block event loop
         source_base64 = None
         source_mime = "image/jpeg"
         if req.source_image_url:
-            try:
-                img_url = req.source_image_url
-                if "commons.wikimedia.org" in img_url and "/Special:FilePath/" in img_url:
-                    if "?" in img_url:
-                        img_url += "&width=1200"
-                    else:
-                        img_url += "?width=1200"
-
+            def _download_source_image(img_url: str):
                 req_dl = urllib.request.Request(
                     img_url,
                     headers={"User-Agent": "VietPhucRemix/1.0 (fashion-preview)"}
                 )
-                with urllib.request.urlopen(req_dl, timeout=8) as dl_res:
-                    img_bytes = dl_res.read()
-                    source_mime = dl_res.headers.get_content_type() or "image/jpeg"
-                    source_base64 = base64.b64encode(img_bytes).decode("utf-8")
+                with urllib.request.urlopen(req_dl, timeout=10) as dl_res:
+                    content = dl_res.read()
+                    mime = dl_res.headers.get_content_type() or "image/jpeg"
+                return content, mime
+
+            try:
+                img_url = req.source_image_url
+                if "commons.wikimedia.org" in img_url and "/Special:FilePath/" in img_url:
+                    img_url += ("&" if "?" in img_url else "?") + "width=1200"
+
+                loop = asyncio.get_running_loop()
+                img_bytes, source_mime = await loop.run_in_executor(
+                    None, _download_source_image, img_url
+                )
+                source_base64 = base64.b64encode(img_bytes).decode("utf-8")
             except Exception as dl_err:
-                print(f"[Generate Preview] Tải ảnh mẫu thất bại ({dl_err}), chuyển sang sinh ảnh trực tiếp.")
+                print(f"[Generate Preview] Tải ảnh mẫu thất bại ({type(dl_err).__name__}: {dl_err}), chuyển sang sinh ảnh trực tiếp.")
 
         # 5. Gọi Gemini Image Generation trong thread riêng (tránh block event loop FastAPI)
         image_result = None
@@ -1245,15 +1267,17 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
                 }
                 payload_bytes = json.dumps(payload).encode("utf-8")
 
-                def _call_gemini_sync(model_name: str) -> Optional[str]:
+                # Định nghĩa hàm blocking TRƯỚC vòng lặp để tránh closure capture stale
+                def _call_gemini_sync(model_name: str, _payload_bytes=payload_bytes,
+                                      _api_key=effective_api_key) -> Optional[str]:
                     """Blocking urllib call — chạy trong thread executor, không block event loop."""
                     api_url = (
                         f"https://generativelanguage.googleapis.com/v1beta/models/"
-                        f"{model_name}:generateContent?key={effective_api_key}"
+                        f"{model_name}:generateContent?key={_api_key}"
                     )
                     post_req = urllib.request.Request(
                         api_url,
-                        data=payload_bytes,
+                        data=_payload_bytes,
                         headers={"Content-Type": "application/json"}
                     )
                     with urllib.request.urlopen(post_req, timeout=25) as api_res:
@@ -1269,7 +1293,7 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
                             return f"data:{m_type};base64,{img_data}"
                     return None
 
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 for model_name in models_to_try:
                     try:
                         img = await loop.run_in_executor(
@@ -1303,16 +1327,17 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
         pollinations_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={pollinations_seed}&width=768&height=1024&nologo=true"
 
         if not image_result:
-            def _fetch_pollinations_sync() -> Optional[bytes]:
+            _poll_url = pollinations_url  # capture tường minh, tránh closure stale
+            def _fetch_pollinations_sync(_url=_poll_url) -> Optional[bytes]:
                 req_p = urllib.request.Request(
-                    pollinations_url,
+                    _url,
                     headers={"User-Agent": "VietPhucRemix/1.0"}
                 )
                 with urllib.request.urlopen(req_p, timeout=20) as p_res:
                     return p_res.read()
 
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 p_bytes = await loop.run_in_executor(None, _fetch_pollinations_sync)
                 image_result = f"data:image/jpeg;base64,{base64.b64encode(p_bytes).decode('utf-8')}"
                 used_model = "pollinations-remix"
