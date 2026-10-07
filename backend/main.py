@@ -189,10 +189,24 @@ def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
                 pass
     return None
 
+# ==============================================================================
+# Photorealistic / Hyper-realistic Studio Fashion Photography Prompt Constants
+# ==============================================================================
+PHOTOREALISTIC_STUDIO_KEYWORDS = (
+    "Hyper-realistic, photorealistic 8k resolution, cinematic lighting, "
+    "professional studio photography, sharp focus, highly detailed face and natural skin texture, "
+    "volumetric lighting, masterpiece, shot on 85mm lens, f/1.8"
+)
+
+VIETNAMESE_FABRIC_TEXTURE_KEYWORDS = (
+    "Intricate and authentic textures of traditional Vietnamese fabric, glowing silk, "
+    "detailed golden embroidery, sharp patterns on brocade, traditional royal or cultural background"
+)
+
 def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: str) -> Dict[str, Any]:
     """Generates authentic Vietnamese traditional outfit styling & high-quality English image prompt."""
     is_male = "nam" in gioi_tinh.lower()
-    model_gender_en = "Vietnamese handsome young man" if is_male else "Vietnamese graceful elegant young woman"
+    model_gender_en = "male model" if is_male else "female model"
     
     # Determine garment key
     garment_key = y_phuc.lower().strip()
@@ -206,49 +220,91 @@ def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: s
         else:
             garment_key = "ao_dai"
 
-    # Style profiles
+    # Style profiles with Photorealistic / Hyper-realistic 8k prompt format
     profiles = {
         "ao_dai": {
             "name": "Áo Dài Truyền Thống",
             "ao": f"Áo Dài dáng suông thướt tha, chất liệu lụa tơ tằm Vạn Phúc dệt vân mây, sắc đỏ son hòa hoàng kim thanh nhã, tôn lên cốt cách trang nhã cho dịp {dip}.",
             "quan_vay": "Quần lụa Bạch Hạc ống rộng óng ả, buông rủ chấm gót theo từng bước đi.",
             "phu_kien": "Khăn vành dây hoặc khăn đóng đen truyền thống, kiềng bạc chạm hoa sen, guốc mộc quai nhung đỏ thắm, tay cầm đóa hoa sen thanh khiết.",
-            "prompt": f"A photorealistic 8k cinematic portrait of a {model_gender_en} wearing an authentic Vietnamese Ao Dai made of premium red silk with delicate golden lotus embroidery, standing gracefully in Hoi An ancient town surrounded by warm lantern lights, soft morning light, hyper-detailed silk textile texture, cinematic depth of field, sharp focus, award-winning cultural fashion photography."
+            "prompt": (
+                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
+                f"wearing authentic Vietnamese traditional Ao Dai made of premium glowing red silk with delicate golden lotus embroidery, "
+                f"color scheme radiant vermilion red and imperial gold, "
+                f"traditional background festive Vietnamese cultural pavilion in Hoi An ancient lantern town for {dip}, "
+                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
+                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            )
         },
         "ngu_than": {
             "name": "Áo Ngũ Thân (Áo Tấc & Tay Chẽn)",
             "ao": f"Áo Ngũ Thân tay chẽn hoặc Áo Tấc uy nghi, chất liệu lụa Hà Đông dệt họa tiết chữ Thọ và hoa văn cổ triều Nguyễn, phom suông mực thước đúng chuẩn điển lễ.",
             "quan_vay": "Quần lụa sa trắng hoặc đen than tuyền, phom đứng đắn và trang trọng.",
             "phu_kien": "Khăn đóng đen 7 nếp truyền thống, quạt tiêu trúc nan tre, chuỗi hạt bồ đề hoặc kiềng bạc, giày da thủ công hoặc guốc mộc.",
-            "prompt": f"A cinematic 8k photorealistic portrait of an authentic {model_gender_en} wearing traditional Vietnamese Ngu Than dynastic tunic in deep indigo and dark gold silk, standing in front of an ancient Vietnamese temple wooden pavilion, misty morning atmosphere, intricate embroidery details, masterpiece, sharp focus, cultural heritage fashion."
+            "prompt": (
+                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
+                f"wearing authentic traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac) with wide flowing sleeves in deep indigo and dark gold silk, "
+                f"color scheme deep indigo blue, charcoal and imperial gold accents, "
+                f"traditional background ancient Vietnamese royal citadel wooden pavilion with soft misty morning light for {dip}, "
+                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
+                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            )
         },
         "tu_than": {
             "name": "Áo Tứ Thân & Yếm Đào",
             "ao": "Áo Tứ Thân bốn vạt tha thướt thắt nút eo duyên dáng, lấp ló mép yếm đào thắm dệt lụa tơ tằm, dải thắt lưng lụa xanh thiên thanh mềm mại.",
             "quan_vay": "Váy đụp lụa đen bồng bềnh e ấp theo từng nhịp bước chân.",
             "phu_kien": "Nón ba tầm (nón quai thao) buộc dải thao tơ, khăn mỏ quạ nhung đen, xà tích bạc lấp lánh bên hông, guốc mộc cong Kinh Bắc.",
-            "prompt": f"A photorealistic 8k cinematic portrait of a beautiful {model_gender_en} wearing a traditional Vietnamese Tu Than folk costume with silk pink bib (Yem Dao) and flowing outer robes, holding a large traditional Quan Ho flat palm hat (Non Quai Thao), set against a peaceful ancient Northern Vietnamese village with water lily pond, soft diffused sunlight, ultra-detailed fabric texture, cultural masterpiece."
+            "prompt": (
+                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
+                f"wearing traditional Vietnamese Tu Than folk costume with silk pink bib (Yem Dao) and flowing outer robes, holding traditional flat palm hat (Non Quai Thao), "
+                f"color scheme rose pink, natural raw silk ivory and emerald green ribbon, "
+                f"traditional background peaceful ancient Northern Vietnamese heritage village courtyard with lotus pond for {dip}, "
+                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
+                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            )
         },
         "nhat_binh": {
             "name": "Áo Nhật Bình Cung Đình",
             "ao": "Áo Nhật Bình gấm hoàng gia màu đỏ chu sa hoặc vàng hoàng yến, cổ áo chữ nhật thêu phượng vũ và hoa cúc tinh xảo, dải viền ngũ sắc tượng trưng cho ngũ hành tương sinh.",
             "quan_vay": "Quần lụa trắng Bạch Hạc dệt vân mây chìm trang nhã.",
             "phu_kien": "Khăn vành dây xanh thiên thanh hoàng tộc, kiềng bạc nguyên khối chạm lộng họa tiết hoa sen, guốc mộc sơn son thếp vàng, quạt lụa thêu chim hạc.",
-            "prompt": f"A magnificent photorealistic 8k cinematic portrait of a regal {model_gender_en} wearing a traditional Vietnamese royal Nhat Binh attire in radiant ruby red silk and gold brocade with ornate rectangular collar embroidery, standing inside the Imperial Citadel of Hue with ancient royal architecture, golden hour ambient lighting, hyper-realistic fabric details, cinematic masterpiece."
+            "prompt": (
+                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
+                f"wearing magnificent traditional Vietnamese royal Nhat Binh attire in radiant ruby red silk and gold brocade with ornate rectangular collar golden embroidery, "
+                f"color scheme ruby red, imperial gold and five-element auspicious accents, "
+                f"traditional background grand courtyard of Hue Imperial Citadel with ancient royal architecture for {dip}, "
+                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
+                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            )
         },
         "ao_ba_ba": {
             "name": "Áo Bà Ba Nam Bộ",
             "ao": "Áo Bà Ba xẻ tà nhẹ nhàng bằng lụa satin bóng nhẹ màu ngọc bích hoặc mỡ gà, cổ tròn trang nhã mang hơi thở mộc mạc, phóng khoáng của miền sông nước.",
             "quan_vay": "Quần lụa đen rủ mềm mại, mang lại cảm giác thoải mái, thanh thoát.",
             "phu_kien": "Khăn rằn Nam Bộ kẻ caro đen trắng quàng cổ, nón lá chằm duyên dáng, guốc mộc mộc mạc.",
-            "prompt": f"A cinematic 8k photorealistic portrait of a gentle {model_gender_en} wearing a traditional southern Vietnamese Ao Ba Ba made of soft pastel silk, holding a conical leaf hat (Non La) by a serene Mekong river pier at sunset, golden reflective water, authentic cultural Vietnamese portrait, highly detailed."
+            "prompt": (
+                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
+                f"wearing traditional southern Vietnamese Ao Ba Ba made of soft pastel silk, holding a conical leaf hat (Non La), "
+                f"color scheme soft pastel jade green and silk black, "
+                f"traditional background serene southern Vietnamese river pier and heritage wooden architecture for {dip}, "
+                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
+                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            )
         },
         "trang_phuc_dan_toc": {
             "name": "Trang Phục Thổ Cẩm Dân Tộc Tây Bắc",
             "ao": "Áo chàm thổ cẩm dệt thủ công với họa tiết kỷ hà và hoa văn đính bạc độc bản, nhuộm màu tự nhiên từ vỏ cây rừng Tây Bắc.",
             "quan_vay": "Váy xòe thổ cẩm nhiều tầng rực rỡ sắc màu, chuyển động mềm mại theo từng bước chân.",
             "phu_kien": "Mũ đội đầu đính đồng bạc xủng xoảng, vòng kiềng cổ bạc trạm trổ thủ công, túi thổ cẩm thêu tay.",
-            "prompt": f"A stunning photorealistic 8k cinematic portrait of a {model_gender_en} wearing authentic northwest Vietnamese ethnic minority brocade attire with vibrant hand-woven patterns and silver ornaments, set against misty green terrace fields of Sapa in morning mist, hyper-detailed texture, sharp focus, award-winning travel photography."
+            "prompt": (
+                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
+                f"wearing authentic northwest Vietnamese ethnic minority brocade attire with vibrant hand-woven patterns and silver ornaments, "
+                f"color scheme deep indigo blue, crimson red and colorful tribal embroidery, "
+                f"traditional background misty cultural highland heritage background of Sapa for {dip}, "
+                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
+                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            )
         }
     }
 
@@ -448,40 +504,45 @@ def generate_english_image_prompt(
 ) -> str:
     """
     Tự động tổng hợp các thuộc tính thành câu lệnh tạo ảnh tiếng Anh (English Image Prompt)
-    thật chi tiết và chất lượng cao theo đúng yêu cầu:
-    A photorealistic 8k cinematic portrait of a Vietnamese model wearing traditional [tên áo dài/ngũ thân],
-    color scheme [màu sắc], style [vibe], traditional Vietnamese background, highly detailed, masterclass photography, beautiful lighting.
+    thật chi tiết và chất lượng cao theo chuẩn siêu thực (Photorealistic / Hyper-realistic):
+    A photorealistic 8k portrait of a gorgeous Vietnamese model with realistic features, wearing [tên y phục chi tiết],
+    color scheme [màu sắc], traditional background [bối cảnh phù hợp], Hyper-realistic, cinematic lighting,
+    professional studio photography, masterpiece, highly detailed fabric textures.
     """
     is_male = "nam" in gender.lower() or gender == "male"
-    model_str = "Vietnamese handsome male model" if is_male else "Vietnamese beautiful elegant female model"
+    model_str = (
+        "gorgeous Vietnamese male model with realistic features"
+        if is_male else
+        "gorgeous Vietnamese female model with realistic features"
+    )
 
     garment_name = look.get("garment_name", "Áo Dài Việt Nam")
     garment_id = look.get("garment_id", "")
 
     garment_en_map = {
-        "ao_dai": "traditional Vietnamese Ao Dai silk dress",
-        "ngu_than": "traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac)",
-        "tu_than": "traditional Vietnamese Tu Than folk costume with pink silk Yem bib and flowing outer robes",
-        "nhat_binh": "traditional Vietnamese royal Nhat Binh robe with ornate rectangular embroidered collar",
-        "ao_ba_ba": "traditional southern Vietnamese Ao Ba Ba silk blouse",
-        "trang_phuc_dan_toc": "traditional Vietnamese ethnic minority brocade attire with vibrant handwoven patterns"
+        "ao_dai": "traditional Vietnamese Ao Dai silk dress with intricate tailored silhouette and glowing silk fabric",
+        "ngu_than": "traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac) with wide flowing sleeves and formal five-panel tailoring",
+        "tu_than": "traditional Vietnamese Tu Than folk costume with silk pink bib (Yem Dao) and flowing outer robes",
+        "nhat_binh": "traditional Vietnamese royal Nhat Binh robe with ornate rectangular golden embroidered collar and five-element ribbons",
+        "ao_ba_ba": "traditional southern Vietnamese Ao Ba Ba premium silk blouse with delicate tailoring",
+        "trang_phuc_dan_toc": "traditional Vietnamese ethnic minority brocade attire with vibrant handwoven geometric patterns and silver jewelry"
     }
 
     garment_en = garment_en_map.get(garment_id)
     if not garment_en:
         g_low = garment_name.lower()
         if "nhật bình" in g_low:
-            garment_en = "traditional Vietnamese royal Nhat Binh robe"
+            garment_en = "traditional Vietnamese royal Nhat Binh robe with ornate rectangular embroidered collar"
         elif "ngũ thân" in g_low or "áo tấc" in g_low:
-            garment_en = "traditional Vietnamese Ngu Than dynastic royal robe"
+            garment_en = "traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac)"
         elif "tứ thân" in g_low or "yếm" in g_low:
-            garment_en = "traditional Vietnamese Tu Than folk costume"
+            garment_en = "traditional Vietnamese Tu Than folk costume with silk Yem bib"
         elif "bà ba" in g_low:
             garment_en = "traditional southern Vietnamese Ao Ba Ba silk blouse"
         elif "thổ cẩm" in g_low or "dân tộc" in g_low:
             garment_en = "traditional Vietnamese ethnic minority brocade attire"
         else:
-            garment_en = "traditional Vietnamese Ao Dai silk dress"
+            garment_en = f"traditional Vietnamese {garment_name} silk dress"
 
     # Color scheme
     colors = []
@@ -503,29 +564,31 @@ def generate_english_image_prompt(
 
     # Background setting based on occasion
     bg_map = {
-        "tet": "festive Vietnamese Tet Spring atmosphere with blooming peach blossoms and ancient wooden architecture",
-        "le_chua": "serene ancient Vietnamese Buddhist pagoda courtyard with incense mist and lotus pond",
-        "cuoi_hoi": "luxurious traditional Vietnamese royal wedding ceremony pavilion with lanterns and floral decor",
-        "le_hoi": "vibrant traditional Vietnamese folk festival courtyard with ancient brick walls",
-        "chup_anh": "cinematic courtyard of Hue Imperial Citadel or Hoi An ancient lantern town",
-        "truong_hoc": "vintage Indochine architecture campus with sunlit corridor",
-        "hang_ngay": "contemporary aesthetic Vietnamese tea house with vintage wooden interior"
+        "tet": "festive Vietnamese Tet Spring atmosphere with blooming peach blossoms, ancient wooden architecture and warm red lanterns",
+        "le_chua": "serene ancient Vietnamese Buddhist pagoda courtyard with incense mist, stone pillars and lotus pond",
+        "cuoi_hoi": "luxurious traditional Vietnamese royal wedding ceremony pavilion with lanterns, carved lattice and floral decor",
+        "le_hoi": "vibrant traditional Vietnamese folk festival courtyard with ancient brick walls and ceremonial flags",
+        "chup_anh": "cinematic courtyard of Hue Imperial Citadel or Hoi An ancient lantern heritage town",
+        "truong_hoc": "vintage Indochine architecture campus with sunlit wooden corridor",
+        "hang_ngay": "contemporary aesthetic Vietnamese tea house with vintage wooden interior and warm ambient light"
     }
-    bg_desc = bg_map.get(occasion.lower(), "traditional Vietnamese architectural background")
+    bg_desc = bg_map.get(occasion.lower(), "traditional royal or cultural background of ancient Hue citadel")
 
-    # Prompt format
+    # Cấu trúc câu lệnh chuẩn Siêu thực (Photorealistic / Hyper-realistic)
     prompt = (
-        f"A photorealistic 8k cinematic portrait of a {model_str} wearing {garment_en}, "
-        f"color scheme {color_scheme}, style {vibe_style}, {bg_desc}, "
-        f"highly detailed, masterclass photography, beautiful lighting, sharp focus."
+        f"A photorealistic 8k portrait of a {model_str}, "
+        f"wearing {garment_en}, color scheme {color_scheme}, "
+        f"traditional background {bg_desc}, "
+        f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
+        f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, "
+        f"{VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
     )
     return prompt
 
 def generate_pollinations_url(prompt: str) -> str:
-    """Tạo link ảnh tự động qua Pollinations.ai API chuẩn tỷ lệ 800x1000."""
-    encoded_prompt = urllib.parse.quote(prompt)
-    seed = random.randint(100000, 999999)
-    return f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=800&height=1000&nologo=true&seed={seed}"
+    """Tạo link ảnh tự động qua Pollinations.ai API với prompt siêu thực."""
+    encoded_prompt = urllib.parse.quote(prompt, safe="")
+    return f"https://image.pollinations.ai/prompt/{encoded_prompt}"
 
 @app.post("/api/recommend")
 def recommend_outfit(req: RecommendRequest):
@@ -601,12 +664,12 @@ async def generate_outfit_and_image(req: OutfitImageRequest):
                 "miêu tả chi tiết hình ảnh thời trang (English Image Prompt) phù hợp với cổ phục Việt Nam "
                 "(Ví dụ: 'A photorealistic 8k cinematic portrait of a Vietnamese model wearing traditional...').\n\n"
                 "Quy chuẩn về English Image Prompt:\n"
+                "- BẮT BUỘC tuân theo cấu trúc chuẩn siêu thực:\n"
+                "  'A photorealistic 8k portrait of a gorgeous Vietnamese model with realistic features, wearing [tên y phục chi tiết], color scheme [màu sắc], traditional background [bối cảnh phù hợp], Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures.'\n"
                 "- Phải mô tả chân dung người mẫu Việt Nam đúng giới tính và thần thái theo vibe.\n"
                 "- Phải mô tả chính xác cổ phục Việt Nam (Áo Dài, Áo Nhật Bình, Áo Ngũ Thân, Áo Tứ Thân, Áo Bà Ba, hoặc Thổ Cẩm Tây Bắc).\n"
-                "- Chi tiết chất liệu vải (lụa tơ tằm, gấm hoa, the), màu sắc ngũ hành tương sinh, hoa văn dệt thêu truyền thống.\n"
-                "- Phụ kiện: khăn vành / khăn đóng / nón quai thao / kiềng bạc / guốc mộc / quạt trúc.\n"
-                "- Bối cảnh cổ kính Việt Nam (Huế Citadel, Hoi An Ancient Town, ancient temple courtyard, soft cinematic light).\n"
-                "- Chất lượng: 'masterpiece, photorealistic 8k, cinematic portrait, intricate fabric texture, award-winning photography, highly detailed, sharp focus'.\n\n"
+                "- Thêm bộ từ khóa chất liệu cổ phục cao cấp: 'Intricate and authentic textures of traditional Vietnamese fabric, glowing silk, detailed golden embroidery, sharp patterns on brocade, traditional royal or cultural background.'\n"
+                "- Thêm bộ từ khóa nhiếp ảnh studio cao cấp: 'Hyper-realistic, photorealistic 8k resolution, cinematic lighting, professional studio photography, sharp focus, highly detailed face and natural skin texture, volumetric lighting, masterpiece, shot on 85mm lens, f/1.8.'\n\n"
                 "BẮT BUỘC TRẢ VỀ DUY NHẤT 1 ĐỐI TƯỢNG JSON VỚI CÁC TRƯỜNG:\n"
                 "{\n"
                 '  "ao": "Tên và chi tiết kiểu áo, màu sắc, hoa văn, chất liệu vải",\n'
@@ -788,13 +851,16 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
         if not image_result:
             try:
                 pollinations_prompt = (
-                    f"Full body fashion photography, realistic Vietnamese traditional attire {garment_name}, "
-                    f"color {color_name}, with {headdress_val}, {jewelry_val}, {bottom_val}, {shoes_val}, "
-                    f"historic architecture palace background, cinematic lighting, 8k resolution, photorealistic"
+                    f"A photorealistic 8k portrait of a gorgeous Vietnamese model with realistic features, "
+                    f"wearing authentic Vietnamese traditional attire {garment_name}, color scheme {color_name}, "
+                    f"with {headdress_val}, {jewelry_val}, {bottom_val}, {shoes_val}, "
+                    f"traditional background traditional royal or cultural background of ancient Hue citadel, "
+                    f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
+                    f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, "
+                    f"{VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
                 )
-                encoded = urllib.parse.quote(pollinations_prompt)
-                seed = random.randint(100000, 999999)
-                p_url = f"https://image.pollinations.ai/prompt/{encoded}?width=768&height=1024&nologo=true&seed={seed}"
+                encoded = urllib.parse.quote(pollinations_prompt, safe="")
+                p_url = f"https://image.pollinations.ai/prompt/{encoded}"
 
                 req_p = urllib.request.Request(p_url, headers={"User-Agent": "VietPhucRemix/1.0"})
                 with urllib.request.urlopen(req_p, timeout=20) as p_res:
