@@ -391,42 +391,64 @@ async function generateAIOutfitPreview(force = false) {
 
     try {
         const apiKey = localStorage.getItem("gemini_api_key") || "";
-        const data = await safeFetchJson(`${API_BASE_URL}/api/generate-outfit-preview`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(apiKey ? { "x-gemini-api-key": apiKey } : {}),
-            },
-            body: JSON.stringify({
+        const selectedAcc = [
+                config.options.jewelry,
+                config.options.shoes,
+                config.options.bag,
+            ].filter(x => x && x !== "Không có" && x !== "Giữ nguyên" && x !== "Không mang túi hoặc quạt").join(", ");
+
+            const bodyPayload = {
                 source_image_url: config.sourceImageUrl,
                 options: config.options,
-            }),
-            signal: aiPreviewAbortController.signal,
-            cache: "no-store",
-        });
+                garment_type: config.options.garmentName,
+                color: config.options.colorName || config.options.colorHex,
+                pants_skirt: config.options.bottom,
+                hat: config.options.headdress,
+                accessories: selectedAcc,
+            };
 
-        if (!data || !data.generated_image) {
-            const apiError = new Error(data?.message || "Gemini chưa tạo được ảnh.");
-            apiError.code = data?.code || "";
-            throw apiError;
+            const data = await safeFetchJson(`${API_BASE_URL}/api/generate-outfit-preview`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(apiKey ? { "x-gemini-api-key": apiKey } : {}),
+                },
+                body: JSON.stringify(bodyPayload),
+                signal: aiPreviewAbortController.signal,
+                cache: "no-store",
+            });
+
+            const generatedImg = data?.generated_image || data?.image_url;
+            if (!data || !generatedImg) {
+                const apiError = new Error(data?.message || "Chưa tạo được ảnh phối đồ.");
+                apiError.code = data?.code || "";
+                throw apiError;
+            }
+
+            let previewSrc = "";
+            if (typeof generatedImg === "string" && generatedImg.startsWith("data:")) {
+                const objectUrl = URL.createObjectURL(dataUrlToBlob(generatedImg));
+                if (generationId !== aiPreviewGenerationId) {
+                    URL.revokeObjectURL(objectUrl);
+                    return;
+                }
+                aiPreviewObjectUrl = objectUrl;
+                previewSrc = objectUrl;
+            } else if (generatedImg) {
+                previewSrc = generatedImg;
+            }
+
+            const image = document.getElementById("studio-ai-preview-image");
+            if (image && previewSrc) image.src = previewSrc;
+            const modelLabel = data.generated_model ? ` · ${data.generated_model}` : "";
+            setAIPreviewState("ready", `${config.options.garmentName} · ${config.options.colorName}${modelLabel}`);
+        } catch (error) {
+            if (error.name === "AbortError" || generationId !== aiPreviewGenerationId) return;
+            if (error.code === "GEMINI_IMAGE_QUOTA_EXHAUSTED") aiPreviewQuotaMessage = error.message;
+            setAIPreviewState("error", error.message || "Không thể tạo ảnh AI lúc này.");
+        } finally {
+            if (generationId === aiPreviewGenerationId) aiPreviewAbortController = null;
         }
-        const objectUrl = URL.createObjectURL(dataUrlToBlob(data.generated_image));
-        if (generationId !== aiPreviewGenerationId) {
-            URL.revokeObjectURL(objectUrl);
-            return;
-        }
-        aiPreviewObjectUrl = objectUrl;
-        const image = document.getElementById("studio-ai-preview-image");
-        if (image) image.src = objectUrl;
-        const modelLabel = data.generated_model ? ` · ${data.generated_model}` : "";
-        setAIPreviewState("ready", `${config.options.garmentName} · ${config.options.colorName} · ảnh do Gemini tạo${modelLabel}`);
-    } catch (error) {
-        if (error.name === "AbortError" || generationId !== aiPreviewGenerationId) return;
-        if (error.code === "GEMINI_IMAGE_QUOTA_EXHAUSTED") aiPreviewQuotaMessage = error.message;
-        setAIPreviewState("error", error.message || "Không thể tạo ảnh AI lúc này.");
-    } finally {
-        if (generationId === aiPreviewGenerationId) aiPreviewAbortController = null;
-    }
 }
 
 function openAIPreviewMode() {

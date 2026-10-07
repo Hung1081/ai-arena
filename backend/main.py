@@ -112,6 +112,14 @@ class GenerateOutfitPreviewRequest(BaseModel):
     options: Optional[Dict[str, Any]] = None
     apiKey: Optional[str] = None
     gemini_api_key: Optional[str] = None
+    garment_type: Optional[str] = None
+    color: Optional[str] = None
+    pants_skirt: Optional[str] = None
+    hat: Optional[str] = None
+    accessories: Optional[str] = None
+    gender: Optional[str] = None
+    occasion: Optional[str] = None
+    vibe: Optional[str] = None
 
 class RecommendRequest(BaseModel):
     occasion: Optional[str] = "tet"
@@ -120,10 +128,15 @@ class RecommendRequest(BaseModel):
     element: Optional[str] = None
 
 class OutfitImageRequest(BaseModel):
-    dip: str
-    vibe: str
-    gioi_tinh: str
-    y_phuc: str
+    dip: Optional[str] = "Tết"
+    vibe: Optional[str] = "Thanh Lịch"
+    gioi_tinh: Optional[str] = "Nữ"
+    y_phuc: Optional[str] = "auto"
+    garment_type: Optional[str] = None
+    color: Optional[str] = None
+    pants_skirt: Optional[str] = None
+    hat: Optional[str] = None
+    accessories: Optional[str] = None
     gemini_api_key: Optional[str] = None
 
 def call_gemini_api(
@@ -209,8 +222,13 @@ def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 # ==============================================================================
-# Photorealistic / Hyper-realistic Studio Fashion Photography Prompt Constants
+# Standardized Photorealistic Prompt Mapping Constants & Functions
 # ==============================================================================
+HYPER_REALISTIC_KEYWORDS = (
+    "hyper-realistic, 8k resolution, professional studio lighting, "
+    "detailed traditional Vietnamese fabric and golden embroidery"
+)
+
 PHOTOREALISTIC_STUDIO_KEYWORDS = (
     "Hyper-realistic, photorealistic 8k resolution, cinematic lighting, "
     "professional studio photography, sharp focus, highly detailed face and natural skin texture, "
@@ -222,10 +240,212 @@ VIETNAMESE_FABRIC_TEXTURE_KEYWORDS = (
     "detailed golden embroidery, sharp patterns on brocade, traditional royal or cultural background"
 )
 
+GARMENT_MAPPING = {
+    "ao_dai": "authentic Vietnamese traditional Ao Dai silk dress with elegant tailored silhouette and flowing panels",
+    "ngu_than": "authentic traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac) with wide flowing sleeves and formal five-panel tailoring",
+    "ao_tac": "authentic traditional Vietnamese royal Ao Tac ceremonial robe with majestic wide sleeves and five-panel cut",
+    "nhat_binh": "magnificent traditional Vietnamese royal Nhat Binh attire in radiant silk and brocade with ornate rectangular golden embroidered collar and five-element auspicious ribbons",
+    "tu_than": "traditional Vietnamese Tu Than four-panel folk costume with graceful draped outer robes and silk Yem bib",
+    "ao_ba_ba": "traditional southern Vietnamese Ao Ba Ba silk blouse with elegant soft tailoring and delicate buttons",
+    "trang_phuc_dan_toc": "authentic traditional Vietnamese ethnic minority brocade attire with vibrant hand-woven geometric patterns and silver jewelry"
+}
+
+COLOR_MAPPING = {
+    "#9e1a1a": "radiant vermilion red and crimson with delicate golden accents",
+    "đỏ son": "radiant vermilion red and crimson with delicate golden accents",
+    "đỏ chu sa": "imperial cinnabar vermilion red",
+    "đỏ": "radiant vermilion red and crimson",
+    "#d4af37": "imperial royal gold and warm amber yellow",
+    "hoàng kim": "imperial royal gold and warm amber yellow",
+    "vàng": "imperial royal gold and warm amber yellow",
+    "#1b3b6f": "deep indigo royal blue and sapphire",
+    "xanh lam": "deep indigo royal blue and sapphire",
+    "thủy ba": "deep marine blue with ocean wave patterns",
+    "#d98282": "soft lotus petal pink and delicate blush",
+    "hồng cánh sen": "soft lotus petal pink and delicate blush",
+    "hồng": "soft lotus petal pink and delicate blush",
+    "#e8e4df": "pristine white silk and pearl ivory",
+    "trắng bạch hạc": "pristine white silk with subtle woven cloud patterns",
+    "trắng": "pristine white silk and pearl ivory",
+    "#2e8b57": "glowing imperial jade green",
+    "ngọc bích": "glowing imperial jade green",
+    "xanh ngọc": "glowing imperial jade green",
+    "#1a1a1a": "deep lustrous charcoal black silk",
+    "đen than": "deep lustrous charcoal black silk",
+    "đen": "deep lustrous charcoal black silk",
+    "tím": "traditional Hue royal imperial purple"
+}
+
+PANTS_SKIRT_MAPPING = {
+    "pants_white": "flowing loose-fitting white silk trousers (Quan Lua)",
+    "quần lụa trắng": "flowing loose-fitting white silk trousers (Quan Lua)",
+    "quần trắng": "flowing loose-fitting white silk trousers",
+    "pants_black": "wide-legged flowing black silk trousers",
+    "quần lụa đen": "wide-legged flowing black silk trousers",
+    "quần đen": "wide-legged flowing black silk trousers",
+    "skirt_black": "traditional pleated black silk wrap skirt (Vay Dup)",
+    "váy đụp lụa đen": "traditional pleated black silk wrap skirt (Vay Dup)",
+    "váy đụp": "traditional pleated black silk wrap skirt (Vay Dup)",
+    "váy đen": "traditional pleated black silk wrap skirt",
+    "skirt_ethnic": "vibrant flared ethnic minority brocade tiered skirt with colorful geometric borders",
+    "váy xòe thổ cẩm": "vibrant flared ethnic minority brocade tiered skirt with colorful geometric borders",
+    "váy thổ cẩm": "vibrant flared ethnic minority brocade tiered skirt"
+}
+
+HAT_MAPPING = {
+    "khan_vanh": "traditional Vietnamese golden pleated imperial headwrap (Khan Vanh Day)",
+    "khăn vành": "traditional Vietnamese golden pleated imperial headwrap (Khan Vanh Day)",
+    "khăn vành dây": "traditional Vietnamese golden pleated imperial headwrap (Khan Vanh Day)",
+    "khan_dong": "traditional formal Vietnamese black rolled turban (Khan Dong)",
+    "khăn đóng": "traditional formal Vietnamese black rolled turban (Khan Dong)",
+    "khăn vấn": "traditional formal Vietnamese rolled turban (Khan Dong)",
+    "non_la": "iconic Vietnamese conical palm leaf hat (Non La) with silk ribbon",
+    "nón lá": "iconic Vietnamese conical palm leaf hat (Non La) with silk ribbon",
+    "non_quai_thao": "traditional northern Vietnamese flat palm hat (Non Quai Thao) with long silk ribbons",
+    "nón ba tầm": "traditional northern Vietnamese flat palm hat (Non Quai Thao) with long silk ribbons",
+    "quai thao": "traditional northern Vietnamese flat palm hat (Non Quai Thao) with long silk ribbons",
+    "mu_tho_cam": "ornate ethnic minority brocade headpiece with silver tassels and ornaments",
+    "mũ thổ cẩm": "ornate ethnic minority brocade headpiece with silver tassels",
+    "khăn rằn": "traditional southern Vietnamese checkered scarf (Khan Ran)",
+    "none": "neat traditional Vietnamese styled hair",
+    "không có": "neat traditional Vietnamese styled hair",
+    "giữ nguyên": "neat traditional Vietnamese styled hair"
+}
+
+ACCESSORIES_MAPPING = {
+    "kieng_bac": "traditional engraved solid silver neck ring (Kieng Bac)",
+    "kiềng bạc": "traditional engraved solid silver neck ring (Kieng Bac)",
+    "vong_ngoc": "smooth imperial green jade bangle bracelet",
+    "vòng ngọc": "smooth imperial green jade bangle bracelet",
+    "xa_tich": "traditional hanging silver hip chain ornaments (Xa Tich)",
+    "xà tích": "traditional hanging silver hip chain ornaments (Xa Tich)",
+    "quat_tram": "delicate bamboo frame silk folding fan with lotus prints",
+    "quạt": "delicate bamboo frame silk folding fan with lotus prints",
+    "guoc_moc": "traditional handcrafted wooden clogs (Guoc Moc) with velvet straps",
+    "guốc mộc": "traditional handcrafted wooden clogs (Guoc Moc) with velvet straps",
+    "tui_coi": "handcrafted woven straw artisan pouch",
+    "túi cói": "handcrafted woven straw artisan pouch",
+    "tui_may": "handcrafted bamboo wicker pouch",
+    "tui_tho_cam": "hand-embroidered ethnic brocade pouch",
+    "túi thổ cẩm": "hand-embroidered ethnic brocade pouch"
+}
+
+OCCASION_MAPPING = {
+    "tet": "festive Vietnamese Tet Spring atmosphere with blooming peach blossoms, ancient wooden architecture and warm red lanterns",
+    "le_chua": "serene ancient Vietnamese Buddhist pagoda courtyard with incense mist, stone pillars and lotus pond",
+    "cuoi_hoi": "luxurious traditional Vietnamese royal wedding ceremony pavilion with lanterns, carved lattice and floral decor",
+    "le_hoi": "vibrant traditional Vietnamese folk festival courtyard with ancient brick walls and ceremonial flags",
+    "chup_anh": "cinematic courtyard of Hue Imperial Citadel or Hoi An ancient lantern heritage town",
+    "truong_hoc": "vintage Indochine architecture campus with sunlit wooden corridor",
+    "hang_ngay": "contemporary aesthetic Vietnamese tea house with vintage wooden interior and warm ambient light"
+}
+
+def map_fashion_attributes_to_english_prompt(
+    garment_type: Optional[str] = None,
+    color: Optional[str] = None,
+    pants_skirt: Optional[str] = None,
+    hat: Optional[str] = None,
+    accessories: Optional[str] = None,
+    gender: Optional[str] = "nu",
+    occasion: Optional[str] = "tet",
+    vibe: Optional[str] = "thanh_lich"
+) -> str:
+    """
+    Chuẩn hóa toàn bộ tùy chọn (garment_type, color, pants_skirt, hat, accessories)
+    thành câu lệnh tiếng Anh (English Image Prompt) chuẩn siêu thực.
+    """
+    is_male = "nam" in str(gender or "").lower()
+    model_str = "gorgeous Vietnamese male model with realistic features" if is_male else "gorgeous Vietnamese female model with realistic features"
+
+    # 1. Garment mapping
+    g_raw = str(garment_type or "").lower().strip()
+    garment_desc = GARMENT_MAPPING.get(g_raw)
+    if not garment_desc:
+        if "nhật bình" in g_raw:
+            garment_desc = GARMENT_MAPPING["nhat_binh"]
+        elif "ngũ thân" in g_raw or "áo tấc" in g_raw:
+            garment_desc = GARMENT_MAPPING["ngu_than"]
+        elif "tứ thân" in g_raw or "yếm" in g_raw:
+            garment_desc = GARMENT_MAPPING["tu_than"]
+        elif "bà ba" in g_raw:
+            garment_desc = GARMENT_MAPPING["ao_ba_ba"]
+        elif "thổ cẩm" in g_raw or "dân tộc" in g_raw:
+            garment_desc = GARMENT_MAPPING["trang_phuc_dan_toc"]
+        elif "áo dài" in g_raw or "ao dai" in g_raw:
+            garment_desc = GARMENT_MAPPING["ao_dai"]
+        elif garment_type and garment_type.strip():
+            garment_desc = f"authentic Vietnamese traditional {garment_type.strip()} attire"
+        else:
+            garment_desc = GARMENT_MAPPING["ao_dai"]
+
+    # 2. Color mapping
+    c_raw = str(color or "").lower().strip()
+    color_desc = COLOR_MAPPING.get(c_raw)
+    if not color_desc:
+        for k, v in COLOR_MAPPING.items():
+            if k in c_raw:
+                color_desc = v
+                break
+    if not color_desc:
+        color_desc = f"radiant {color}" if color and color.strip() else "radiant vermilion red and imperial gold"
+
+    # 3. Pants/Skirt mapping
+    p_raw = str(pants_skirt or "").lower().strip()
+    pants_desc = PANTS_SKIRT_MAPPING.get(p_raw)
+    if not pants_desc:
+        for k, v in PANTS_SKIRT_MAPPING.items():
+            if k in p_raw:
+                pants_desc = v
+                break
+    if not pants_desc:
+        pants_desc = f"traditional {pants_skirt}" if pants_skirt and pants_skirt.strip() else "flowing loose-fitting white silk trousers"
+
+    # 4. Hat mapping
+    h_raw = str(hat or "").lower().strip()
+    hat_desc = HAT_MAPPING.get(h_raw)
+    if not hat_desc:
+        for k, v in HAT_MAPPING.items():
+            if k in h_raw:
+                hat_desc = v
+                break
+    if not hat_desc:
+        hat_desc = f"traditional {hat}" if hat and hat.strip() and hat not in ["Không có", "none"] else "neat traditional styled hair"
+
+    # 5. Accessories mapping
+    acc_desc_list = []
+    if accessories and accessories.strip():
+        acc_raw = accessories.lower()
+        for k, v in ACCESSORIES_MAPPING.items():
+            if k in acc_raw and v not in acc_desc_list:
+                acc_desc_list.append(v)
+        if not acc_desc_list:
+            cleaned = [item.strip() for item in accessories.split(",") if item.strip() and item.strip() not in ["Không có", "Giữ nguyên", "none"]]
+            if cleaned:
+                acc_desc_list.append(", ".join(cleaned))
+    accessories_desc = ", ".join(acc_desc_list) if acc_desc_list else "traditional engraved solid silver neck ring (Kieng Bac)"
+
+    # 6. Occasion & Background
+    occ_key = str(occasion or "tet").lower()
+    bg_desc = OCCASION_MAPPING.get(occ_key, "traditional royal or cultural background of ancient Hue citadel")
+
+    # 7. Assembled Prompt with Required Hyper-realistic Keywords
+    prompt = (
+        f"A photorealistic 8k portrait of a {model_str}, "
+        f"wearing {garment_desc}, "
+        f"in color palette {color_desc}, "
+        f"paired with {pants_desc}, "
+        f"wearing {hat_desc}, "
+        f"accessorized with {accessories_desc}, "
+        f"traditional background {bg_desc}, "
+        f"{HYPER_REALISTIC_KEYWORDS}, "
+        f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, "
+        f"{VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+    )
+    return prompt
+
 def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: str) -> Dict[str, Any]:
     """Generates authentic Vietnamese traditional outfit styling & high-quality English image prompt."""
     is_male = "nam" in gioi_tinh.lower()
-    model_gender_en = "male model" if is_male else "female model"
     
     # Determine garment key
     garment_key = y_phuc.lower().strip()
@@ -246,13 +466,15 @@ def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: s
             "ao": f"Áo Dài dáng suông thướt tha, chất liệu lụa tơ tằm Vạn Phúc dệt vân mây, sắc đỏ son hòa hoàng kim thanh nhã, tôn lên cốt cách trang nhã cho dịp {dip}.",
             "quan_vay": "Quần lụa Bạch Hạc ống rộng óng ả, buông rủ chấm gót theo từng bước đi.",
             "phu_kien": "Khăn vành dây hoặc khăn đóng đen truyền thống, kiềng bạc chạm hoa sen, guốc mộc quai nhung đỏ thắm, tay cầm đóa hoa sen thanh khiết.",
-            "prompt": (
-                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
-                f"wearing authentic Vietnamese traditional Ao Dai made of premium glowing red silk with delicate golden lotus embroidery, "
-                f"color scheme radiant vermilion red and imperial gold, "
-                f"traditional background festive Vietnamese cultural pavilion in Hoi An ancient lantern town for {dip}, "
-                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
-                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            "prompt": map_fashion_attributes_to_english_prompt(
+                garment_type="ao_dai",
+                color="đỏ son",
+                pants_skirt="quần lụa trắng",
+                hat="khăn vành",
+                accessories="kiềng bạc, guốc mộc",
+                gender=gioi_tinh,
+                occasion=dip,
+                vibe=vibe
             )
         },
         "ngu_than": {
@@ -260,13 +482,15 @@ def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: s
             "ao": f"Áo Ngũ Thân tay chẽn hoặc Áo Tấc uy nghi, chất liệu lụa Hà Đông dệt họa tiết chữ Thọ và hoa văn cổ triều Nguyễn, phom suông mực thước đúng chuẩn điển lễ.",
             "quan_vay": "Quần lụa sa trắng hoặc đen than tuyền, phom đứng đắn và trang trọng.",
             "phu_kien": "Khăn đóng đen 7 nếp truyền thống, quạt tiêu trúc nan tre, chuỗi hạt bồ đề hoặc kiềng bạc, giày da thủ công hoặc guốc mộc.",
-            "prompt": (
-                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
-                f"wearing authentic traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac) with wide flowing sleeves in deep indigo and dark gold silk, "
-                f"color scheme deep indigo blue, charcoal and imperial gold accents, "
-                f"traditional background ancient Vietnamese royal citadel wooden pavilion with soft misty morning light for {dip}, "
-                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
-                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            "prompt": map_fashion_attributes_to_english_prompt(
+                garment_type="ngu_than",
+                color="xanh lam",
+                pants_skirt="quần lụa đen",
+                hat="khăn đóng",
+                accessories="quạt tiêu trúc, kiềng bạc",
+                gender=gioi_tinh,
+                occasion=dip,
+                vibe=vibe
             )
         },
         "tu_than": {
@@ -274,13 +498,15 @@ def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: s
             "ao": "Áo Tứ Thân bốn vạt tha thướt thắt nút eo duyên dáng, lấp ló mép yếm đào thắm dệt lụa tơ tằm, dải thắt lưng lụa xanh thiên thanh mềm mại.",
             "quan_vay": "Váy đụp lụa đen bồng bềnh e ấp theo từng nhịp bước chân.",
             "phu_kien": "Nón ba tầm (nón quai thao) buộc dải thao tơ, khăn mỏ quạ nhung đen, xà tích bạc lấp lánh bên hông, guốc mộc cong Kinh Bắc.",
-            "prompt": (
-                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
-                f"wearing traditional Vietnamese Tu Than folk costume with silk pink bib (Yem Dao) and flowing outer robes, holding traditional flat palm hat (Non Quai Thao), "
-                f"color scheme rose pink, natural raw silk ivory and emerald green ribbon, "
-                f"traditional background peaceful ancient Northern Vietnamese heritage village courtyard with lotus pond for {dip}, "
-                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
-                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            "prompt": map_fashion_attributes_to_english_prompt(
+                garment_type="tu_than",
+                color="hồng cánh sen",
+                pants_skirt="váy đụp lụa đen",
+                hat="nón quai thao",
+                accessories="xà tích bạc, guốc mộc",
+                gender=gioi_tinh,
+                occasion=dip,
+                vibe=vibe
             )
         },
         "nhat_binh": {
@@ -288,13 +514,15 @@ def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: s
             "ao": "Áo Nhật Bình gấm hoàng gia màu đỏ chu sa hoặc vàng hoàng yến, cổ áo chữ nhật thêu phượng vũ và hoa cúc tinh xảo, dải viền ngũ sắc tượng trưng cho ngũ hành tương sinh.",
             "quan_vay": "Quần lụa trắng Bạch Hạc dệt vân mây chìm trang nhã.",
             "phu_kien": "Khăn vành dây xanh thiên thanh hoàng tộc, kiềng bạc nguyên khối chạm lộng họa tiết hoa sen, guốc mộc sơn son thếp vàng, quạt lụa thêu chim hạc.",
-            "prompt": (
-                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
-                f"wearing magnificent traditional Vietnamese royal Nhat Binh attire in radiant ruby red silk and gold brocade with ornate rectangular collar golden embroidery, "
-                f"color scheme ruby red, imperial gold and five-element auspicious accents, "
-                f"traditional background grand courtyard of Hue Imperial Citadel with ancient royal architecture for {dip}, "
-                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
-                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            "prompt": map_fashion_attributes_to_english_prompt(
+                garment_type="nhat_binh",
+                color="đỏ chu sa",
+                pants_skirt="quần lụa trắng",
+                hat="khăn vành dây",
+                accessories="kiềng bạc hoa sen, quạt lụa",
+                gender=gioi_tinh,
+                occasion=dip,
+                vibe=vibe
             )
         },
         "ao_ba_ba": {
@@ -302,13 +530,15 @@ def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: s
             "ao": "Áo Bà Ba xẻ tà nhẹ nhàng bằng lụa satin bóng nhẹ màu ngọc bích hoặc mỡ gà, cổ tròn trang nhã mang hơi thở mộc mạc, phóng khoáng của miền sông nước.",
             "quan_vay": "Quần lụa đen rủ mềm mại, mang lại cảm giác thoải mái, thanh thoát.",
             "phu_kien": "Khăn rằn Nam Bộ kẻ caro đen trắng quàng cổ, nón lá chằm duyên dáng, guốc mộc mộc mạc.",
-            "prompt": (
-                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
-                f"wearing traditional southern Vietnamese Ao Ba Ba made of soft pastel silk, holding a conical leaf hat (Non La), "
-                f"color scheme soft pastel jade green and silk black, "
-                f"traditional background serene southern Vietnamese river pier and heritage wooden architecture for {dip}, "
-                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
-                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            "prompt": map_fashion_attributes_to_english_prompt(
+                garment_type="ao_ba_ba",
+                color="ngọc bích",
+                pants_skirt="quần lụa đen",
+                hat="nón lá",
+                accessories="khăn rằn, guốc mộc",
+                gender=gioi_tinh,
+                occasion=dip,
+                vibe=vibe
             )
         },
         "trang_phuc_dan_toc": {
@@ -316,13 +546,15 @@ def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: s
             "ao": "Áo chàm thổ cẩm dệt thủ công với họa tiết kỷ hà và hoa văn đính bạc độc bản, nhuộm màu tự nhiên từ vỏ cây rừng Tây Bắc.",
             "quan_vay": "Váy xòe thổ cẩm nhiều tầng rực rỡ sắc màu, chuyển động mềm mại theo từng bước chân.",
             "phu_kien": "Mũ đội đầu đính đồng bạc xủng xoảng, vòng kiềng cổ bạc trạm trổ thủ công, túi thổ cẩm thêu tay.",
-            "prompt": (
-                f"A photorealistic 8k portrait of a gorgeous Vietnamese {model_gender_en} with realistic features, "
-                f"wearing authentic northwest Vietnamese ethnic minority brocade attire with vibrant hand-woven patterns and silver ornaments, "
-                f"color scheme deep indigo blue, crimson red and colorful tribal embroidery, "
-                f"traditional background misty cultural highland heritage background of Sapa for {dip}, "
-                f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
-                f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, {VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+            "prompt": map_fashion_attributes_to_english_prompt(
+                garment_type="trang_phuc_dan_toc",
+                color="xanh lam",
+                pants_skirt="váy xòe thổ cẩm",
+                hat="mũ thổ cẩm",
+                accessories="vòng kiềng bạc, túi thổ cẩm",
+                gender=gioi_tinh,
+                occasion=dip,
+                vibe=vibe
             )
         }
     }
@@ -357,7 +589,8 @@ def health_check():
     gemini_key = os.getenv("GEMINI_API_KEY", "")
     has_key = bool(gemini_key and gemini_key != "YOUR_API_KEY")
     return {
-        "status": "online",
+        "status": "ok",
+        "state": "online",
         "message": "Vietnamese Traditional Stylist Server is operational.",
         "server": "Cô Tư Cổ Phục Stylist API (FastAPI)",
         "geminiKeyConfigured": has_key,
@@ -525,32 +758,35 @@ def consult_stylist(req: ChatRequest):
             "Giọng văn đôn hậu, am hiểu điển lễ, thanh tao và mang hào khí Đại Việt."
         )
 
-        if req.image_base64:
-            prompt = (
-                f"{system_instructions}\n\n"
-                f"Người dùng vừa gửi ảnh chân dung và đưa ra yêu cầu: '{req.query}'.\n"
-                f"Tạo hình cổ phục đề xuất: {garment_name}.\n"
-                f"Hãy nhận xét vóc dáng, màu da và tư vấn cách phối y phục phù hợp nhất."
-            )
-            ai_reply = call_gemini_api(effective_api_key, prompt, req.image_base64, req.image_mime_type)
-        else:
-            prompt = (
-                f"{system_instructions}\n\n"
-                f"Yêu cầu của người dùng: '{req.query}'.\n"
-                f"Gợi ý trang phục: {garment_name} (Màu: {look.get('shirt_color', '')}, Quần: {look.get('bottom', '')}).\n"
-                f"Hãy viết phản hồi tư vấn may mặc chi tiết, lịch sự, truyền cảm hứng tự hào dân tộc."
-            )
-            ai_reply = call_gemini_api(effective_api_key, prompt)
+        try:
+            if req.image_base64:
+                prompt = (
+                    f"{system_instructions}\n\n"
+                    f"Người dùng vừa gửi ảnh chân dung và đưa ra yêu cầu: '{req.query}'.\n"
+                    f"Tạo hình cổ phục đề xuất: {garment_name}.\n"
+                    f"Hãy nhận xét vóc dáng, màu da và tư vấn cách phối y phục phù hợp nhất."
+                )
+                ai_reply = call_gemini_api(effective_api_key, prompt, req.image_base64, req.image_mime_type)
+            else:
+                prompt = (
+                    f"{system_instructions}\n\n"
+                    f"Yêu cầu của người dùng: '{req.query}'.\n"
+                    f"Gợi ý trang phục: {garment_name} (Màu: {look.get('shirt_color', '')}, Quần: {look.get('bottom', '')}).\n"
+                    f"Hãy viết phản hồi tư vấn may mặc chi tiết, lịch sự, truyền cảm hứng tự hào dân tộc."
+                )
+                ai_reply = call_gemini_api(effective_api_key, prompt)
 
-        if ai_reply:
-            result["stylist_response"] = ai_reply
-            result["is_gemini"] = True
+            if ai_reply:
+                result["stylist_response"] = ai_reply
+                result["is_gemini"] = True
+        except Exception as e_chat_gemini:
+            print(f"[Chat Gemini Quota/Error]: {e_chat_gemini}")
 
     return result
 
 @app.post("/api/try-on")
 def virtual_try_on(req: TryOnRequest, raw_request: Request):
-    """Virtual Try-On analysis endpoint using Gemini Vision + Image Generation."""
+    """Virtual Try-On analysis endpoint using Gemini Vision + Image Generation with safe fallback."""
     try:
         client_key = req.apiKey or req.gemini_api_key or raw_request.headers.get("x-gemini-api-key", "")
         effective_api_key = (client_key.strip() if client_key else "") or os.getenv("GEMINI_API_KEY", "")
@@ -577,7 +813,10 @@ def virtual_try_on(req: TryOnRequest, raw_request: Request):
 
         analysis = None
         if effective_api_key and req.image_base64:
-            analysis = call_gemini_api(effective_api_key, prompt, req.image_base64, req.image_mime_type or "image/jpeg")
+            try:
+                analysis = call_gemini_api(effective_api_key, prompt, req.image_base64, req.image_mime_type or "image/jpeg")
+            except Exception as e_try_ana:
+                print(f"[Try-on analysis quota/error]: {e_try_ana}")
 
         if not analysis:
             analysis = (
@@ -589,9 +828,8 @@ def virtual_try_on(req: TryOnRequest, raw_request: Request):
         if effective_api_key and req.image_base64:
             try:
                 models_to_try = [
-                    "gemini-3.1-flash-lite-image",
-                    "gemini-3.1-flash-image",
-                    "gemini-2.5-flash"
+                    "gemini-2.5-flash",
+                    "gemini-2.0-flash"
                 ]
                 cau_lenh = (
                     f"Bạn là nhiếp ảnh gia thời trang. Hãy ghép khuôn mặt và thần thái người trong ảnh vào bộ trang phục: {garment_name} ({desc}), tông màu {color}.\n"
@@ -654,88 +892,29 @@ def generate_english_image_prompt(
     occasion: str = "tet",
     vibe: str = "thanh_lich"
 ) -> str:
-    """
-    Tự động tổng hợp các thuộc tính thành câu lệnh tạo ảnh tiếng Anh (English Image Prompt)
-    thật chi tiết và chất lượng cao theo chuẩn siêu thực (Photorealistic / Hyper-realistic):
-    A photorealistic 8k portrait of a gorgeous Vietnamese model with realistic features, wearing [tên y phục chi tiết],
-    color scheme [màu sắc], traditional background [bối cảnh phù hợp], Hyper-realistic, cinematic lighting,
-    professional studio photography, masterpiece, highly detailed fabric textures.
-    """
-    is_male = "nam" in gender.lower() or gender == "male"
-    model_str = (
-        "gorgeous Vietnamese male model with realistic features"
-        if is_male else
-        "gorgeous Vietnamese female model with realistic features"
-    )
-
-    garment_name = look.get("garment_name", "Áo Dài Việt Nam")
-    garment_id = look.get("garment_id", "")
-
-    garment_en_map = {
-        "ao_dai": "traditional Vietnamese Ao Dai silk dress with intricate tailored silhouette and glowing silk fabric",
-        "ngu_than": "traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac) with wide flowing sleeves and formal five-panel tailoring",
-        "tu_than": "traditional Vietnamese Tu Than folk costume with silk pink bib (Yem Dao) and flowing outer robes",
-        "nhat_binh": "traditional Vietnamese royal Nhat Binh robe with ornate rectangular golden embroidered collar and five-element ribbons",
-        "ao_ba_ba": "traditional southern Vietnamese Ao Ba Ba premium silk blouse with delicate tailoring",
-        "trang_phuc_dan_toc": "traditional Vietnamese ethnic minority brocade attire with vibrant handwoven geometric patterns and silver jewelry"
-    }
-
-    garment_en = garment_en_map.get(garment_id)
-    if not garment_en:
-        g_low = garment_name.lower()
-        if "nhật bình" in g_low:
-            garment_en = "traditional Vietnamese royal Nhat Binh robe with ornate rectangular embroidered collar"
-        elif "ngũ thân" in g_low or "áo tấc" in g_low:
-            garment_en = "traditional Vietnamese Ngu Than dynastic royal robe (Ao Tac)"
-        elif "tứ thân" in g_low or "yếm" in g_low:
-            garment_en = "traditional Vietnamese Tu Than folk costume with silk Yem bib"
-        elif "bà ba" in g_low:
-            garment_en = "traditional southern Vietnamese Ao Ba Ba silk blouse"
-        elif "thổ cẩm" in g_low or "dân tộc" in g_low:
-            garment_en = "traditional Vietnamese ethnic minority brocade attire"
-        else:
-            garment_en = f"traditional Vietnamese {garment_name} silk dress"
-
-    # Color scheme
+    """Tự động tổng hợp các thuộc tính y phục thành câu lệnh tiếng Anh siêu thực."""
+    garment_val = look.get("garment_id") or look.get("garment_name") or "ao_dai"
     colors = []
     if look.get("shirt_color"):
-        colors.append(look.get("shirt_color"))
+        colors.append(str(look.get("shirt_color")))
     if look.get("palette_names"):
-        colors.extend(look.get("palette_names")[:2])
-    color_scheme = ", ".join(colors) if colors else "vermilion red, imperial gold and jade green"
+        colors.extend([str(c) for c in look.get("palette_names")[:2]])
+    color_val = ", ".join(colors) if colors else "đỏ son"
+    bottom_val = look.get("bottom") or "quần lụa trắng"
+    headdress_val = look.get("headdress") or "khăn vành"
+    acc_items = [look.get("jewelry"), look.get("shoes"), look.get("bag")]
+    acc_val = ", ".join([a for a in acc_items if a and a not in ["Không có", "Giữ nguyên", "none"]]) or "kiềng bạc"
 
-    # Vibe style
-    vibe_map = {
-        "thanh_lich": "elegant, graceful and poetic",
-        "co_dien": "vintage, classical dynastic royal heritage",
-        "toi_gian": "minimalist, neat and pure simplicity",
-        "ca_tinh": "bold, unique avant-garde cultural fusion",
-        "nu_tinh": "gentle, soft, graceful and feminine"
-    }
-    vibe_style = vibe_map.get(vibe.lower(), vibe)
-
-    # Background setting based on occasion
-    bg_map = {
-        "tet": "festive Vietnamese Tet Spring atmosphere with blooming peach blossoms, ancient wooden architecture and warm red lanterns",
-        "le_chua": "serene ancient Vietnamese Buddhist pagoda courtyard with incense mist, stone pillars and lotus pond",
-        "cuoi_hoi": "luxurious traditional Vietnamese royal wedding ceremony pavilion with lanterns, carved lattice and floral decor",
-        "le_hoi": "vibrant traditional Vietnamese folk festival courtyard with ancient brick walls and ceremonial flags",
-        "chup_anh": "cinematic courtyard of Hue Imperial Citadel or Hoi An ancient lantern heritage town",
-        "truong_hoc": "vintage Indochine architecture campus with sunlit wooden corridor",
-        "hang_ngay": "contemporary aesthetic Vietnamese tea house with vintage wooden interior and warm ambient light"
-    }
-    bg_desc = bg_map.get(occasion.lower(), "traditional royal or cultural background of ancient Hue citadel")
-
-    # Cấu trúc câu lệnh chuẩn Siêu thực (Photorealistic / Hyper-realistic)
-    prompt = (
-        f"A photorealistic 8k portrait of a {model_str}, "
-        f"wearing {garment_en}, color scheme {color_scheme}, "
-        f"traditional background {bg_desc}, "
-        f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
-        f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, "
-        f"{VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
+    return map_fashion_attributes_to_english_prompt(
+        garment_type=garment_val,
+        color=color_val,
+        pants_skirt=bottom_val,
+        hat=headdress_val,
+        accessories=acc_val,
+        gender=gender,
+        occasion=occasion,
+        vibe=vibe
     )
-    return prompt
 
 def generate_pollinations_url(prompt: str) -> str:
     """Tạo link ảnh tự động qua Pollinations.ai API với prompt siêu thực."""
@@ -787,79 +966,94 @@ def recommend_outfit(req: RecommendRequest):
 @app.post("/api/generate-outfit-image")
 async def generate_outfit_and_image(req: OutfitImageRequest):
     """
-    Core API: Nhận thông tin dịp, vibe, giới tính, y phục.
-    Sử dụng Google Gemini API để tư vấn chi tiết và sinh English Image Prompt.
-    Tạo link ảnh thực tế qua Pollinations.ai và trả về chuẩn JSON.
+    Core API: Nhận thông tin dịp, vibe, giới tính, y phục hoặc các tùy chọn chuẩn hóa
+    (garment_type, color, pants_skirt, hat, accessories).
+    Sử dụng Google Gemini API với cơ chế try-except an toàn. Nếu gặp lỗi Quota/quá tải,
+    hệ thống tự động dùng template prompt mặc định chất lượng cao dựa trực tiếp trên
+    các thông số người dùng vừa chọn để gửi sang Pollinations.ai, đảm bảo luôn có ảnh.
     """
     try:
         dip = req.dip.strip() if req.dip else "Tết"
         vibe = req.vibe.strip() if req.vibe else "Thanh Lịch"
         gioi_tinh = req.gioi_tinh.strip() if req.gioi_tinh else "Nữ"
-        y_phuc = req.y_phuc.strip() if req.y_phuc else "auto"
+        y_phuc = (req.garment_type or req.y_phuc or "auto").strip()
 
         # Check API Key
         effective_api_key = req.gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
+        if effective_api_key == "YOUR_API_KEY":
+            effective_api_key = ""
 
         ai_outfit = None
         ai_message = None
         image_prompt = None
 
-        if effective_api_key and effective_api_key != "YOUR_API_KEY":
-            system_prompt = (
-                "Bạn là Cô Tư - Nghệ nhân am hiểu sâu sắc về Cổ phục Việt Nam và Việt Phục Remix.\n"
-                "Nhiệm vụ: Tư vấn phối đồ trọn bộ cổ phục Việt Nam dựa trên 4 yếu tố người dùng cung cấp:\n"
-                f"- Dịp / Hoàn cảnh: {dip}\n"
-                f"- Phong cách (Vibe): {vibe}\n"
-                f"- Giới tính: {gioi_tinh}\n"
-                f"- Y phục ưu tiên: {y_phuc}\n\n"
-                "Hãy đưa ra lời tư vấn chi tiết (phối màu, chất liệu, phụ kiện) ĐỒNG THỜI tạo ra một câu lệnh tiếng Anh "
-                "miêu tả chi tiết hình ảnh thời trang (English Image Prompt) phù hợp với cổ phục Việt Nam "
-                "(Ví dụ: 'A photorealistic 8k cinematic portrait of a Vietnamese model wearing traditional...').\n\n"
-                "Quy chuẩn về English Image Prompt:\n"
-                "- BẮT BUỘC tuân theo cấu trúc chuẩn siêu thực:\n"
-                "  'A photorealistic 8k portrait of a gorgeous Vietnamese model with realistic features, wearing [tên y phục chi tiết], color scheme [màu sắc], traditional background [bối cảnh phù hợp], Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures.'\n"
-                "- Phải mô tả chân dung người mẫu Việt Nam đúng giới tính và thần thái theo vibe.\n"
-                "- Phải mô tả chính xác cổ phục Việt Nam (Áo Dài, Áo Nhật Bình, Áo Ngũ Thân, Áo Tứ Thân, Áo Bà Ba, hoặc Thổ Cẩm Tây Bắc).\n"
-                "- Thêm bộ từ khóa chất liệu cổ phục cao cấp: 'Intricate and authentic textures of traditional Vietnamese fabric, glowing silk, detailed golden embroidery, sharp patterns on brocade, traditional royal or cultural background.'\n"
-                "- Thêm bộ từ khóa nhiếp ảnh studio cao cấp: 'Hyper-realistic, photorealistic 8k resolution, cinematic lighting, professional studio photography, sharp focus, highly detailed face and natural skin texture, volumetric lighting, masterpiece, shot on 85mm lens, f/1.8.'\n\n"
-                "BẮT BUỘC TRẢ VỀ DUY NHẤT 1 ĐỐI TƯỢNG JSON VỚI CÁC TRƯỜNG:\n"
-                "{\n"
-                '  "ao": "Tên và chi tiết kiểu áo, màu sắc, hoa văn, chất liệu vải",\n'
-                '  "quan_vay": "Chi tiết quần hoặc váy phối kèm (màu sắc, chất liệu)",\n'
-                '  "phu_kien": "Trọn bộ phụ kiện (giày/guốc mộc, khăn/nón, trang sức kiềng bạc, túi/quạt)",\n'
-                '  "loi_khuyen": "Đoạn văn lời khuyên ấm áp, thanh tao, đậm đà văn hóa từ Cô Tư AI",\n'
-                '  "image_prompt": "Câu lệnh tiếng Anh chi tiết để sinh ảnh thời trang cổ phục Việt"\n'
-                "}"
-            )
-            raw_ai_res = call_gemini_api(effective_api_key, system_prompt, response_json=True)
-            if raw_ai_res:
-                parsed_json = extract_json_from_text(raw_ai_res)
-                if parsed_json and isinstance(parsed_json, dict):
-                    ai_outfit = {
-                        "ao": parsed_json.get("ao", ""),
-                        "quan_vay": parsed_json.get("quan_vay", ""),
-                        "phu_kien": parsed_json.get("phu_kien", "")
-                    }
-                    ai_message = parsed_json.get("loi_khuyen") or parsed_json.get("message")
-                    image_prompt = parsed_json.get("image_prompt")
+        if effective_api_key:
+            try:
+                system_prompt = (
+                    "Bạn là Cô Tư - Nghệ nhân am hiểu sâu sắc về Cổ phục Việt Nam và Việt Phục Remix.\n"
+                    "Nhiệm vụ: Tư vấn phối đồ trọn bộ cổ phục Việt Nam dựa trên các yếu tố người dùng cung cấp:\n"
+                    f"- Dịp / Hoàn cảnh: {dip}\n"
+                    f"- Phong cách (Vibe): {vibe}\n"
+                    f"- Giới tính: {gioi_tinh}\n"
+                    f"- Y phục ưu tiên: {y_phuc}\n"
+                    f"- Tông màu: {req.color or 'tự động'}\n"
+                    f"- Quần / Váy: {req.pants_skirt or 'tự động'}\n"
+                    f"- Khăn / Nón: {req.hat or 'tự động'}\n"
+                    f"- Phụ kiện: {req.accessories or 'tự động'}\n\n"
+                    "Hãy đưa ra lời tư vấn chi tiết (phối màu, chất liệu, phụ kiện) ĐỒNG THỜI tạo ra một câu lệnh tiếng Anh "
+                    "miêu tả chi tiết hình ảnh thời trang (English Image Prompt) phù hợp với cổ phục Việt Nam.\n\n"
+                    "Quy chuẩn về English Image Prompt:\n"
+                    "- BẮT BUỘC chứa các từ khóa siêu thực: 'hyper-realistic, 8k resolution, professional studio lighting, detailed traditional Vietnamese fabric and golden embroidery'\n"
+                    "- BẮT BUỘC chứa bộ từ khóa nhiếp ảnh: 'Hyper-realistic, photorealistic 8k resolution, cinematic lighting, professional studio photography, sharp focus, highly detailed face and natural skin texture, volumetric lighting, masterpiece, shot on 85mm lens, f/1.8.'\n\n"
+                    "BẮT BUỘC TRẢ VỀ DUY NHẤT 1 ĐỐI TƯỢNG JSON VỚI CÁC TRƯỜNG:\n"
+                    "{\n"
+                    '  "ao": "Tên và chi tiết kiểu áo, màu sắc, hoa văn, chất liệu vải",\n'
+                    '  "quan_vay": "Chi tiết quần hoặc váy phối kèm (màu sắc, chất liệu)",\n'
+                    '  "phu_kien": "Trọn bộ phụ kiện (giày/guốc mộc, khăn/nón, trang sức kiềng bạc, túi/quạt)",\n'
+                    '  "loi_khuyen": "Đoạn văn lời khuyên ấm áp, thanh tao, đậm đà văn hóa từ Cô Tư AI",\n'
+                    '  "image_prompt": "Câu lệnh tiếng Anh chi tiết để sinh ảnh thời trang cổ phục Việt"\n'
+                    "}"
+                )
+                raw_ai_res = call_gemini_api(effective_api_key, system_prompt, response_json=True)
+                if raw_ai_res:
+                    parsed_json = extract_json_from_text(raw_ai_res)
+                    if parsed_json and isinstance(parsed_json, dict):
+                        ai_outfit = {
+                            "ao": parsed_json.get("ao", ""),
+                            "quan_vay": parsed_json.get("quan_vay", ""),
+                            "phu_kien": parsed_json.get("phu_kien", "")
+                        }
+                        ai_message = parsed_json.get("loi_khuyen") or parsed_json.get("message")
+                        image_prompt = parsed_json.get("image_prompt")
+            except Exception as gemini_err:
+                print(f"[Gemini Quota/Error in generate-outfit-image]: {gemini_err}. Chuyển sang fallback an toàn.")
 
-        # Fallback if Gemini is not configured or failed to parse
+        # Fallback tự động nếu Gemini bị lỗi quota, quá tải, hoặc chưa có key
         if not ai_outfit or not ai_outfit.get("ao") or not image_prompt:
             fallback = build_culture_fallback_outfit(dip, vibe, gioi_tinh, y_phuc)
             ai_outfit = {
                 "ao": fallback["ao"],
-                "quan_vay": fallback["quan_vay"],
-                "phu_kien": fallback["phu_kien"]
+                "quan_vay": req.pants_skirt or fallback["quan_vay"],
+                "phu_kien": req.accessories or fallback["phu_kien"]
             }
             if not ai_message:
                 ai_message = fallback["loi_khuyen"]
-            if not image_prompt:
-                image_prompt = fallback["image_prompt"]
+            
+            # Xây dựng template prompt chất lượng cao dựa trực tiếp trên các thông số người dùng đã chọn
+            image_prompt = map_fashion_attributes_to_english_prompt(
+                garment_type=req.garment_type or y_phuc,
+                color=req.color or "đỏ son",
+                pants_skirt=req.pants_skirt or fallback["quan_vay"],
+                hat=req.hat or "khăn vành",
+                accessories=req.accessories or fallback["phu_kien"],
+                gender=gioi_tinh,
+                occasion=dip,
+                vibe=vibe
+            )
 
-        # Generate Pollinations.ai image URL chuẩn 800x1000
-        encoded_prompt = urllib.parse.quote(image_prompt)
-        seed = random.randint(100000, 999999)
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=800&height=1000&nologo=true&seed={seed}"
+        # Generate Pollinations.ai image URL chuẩn siêu thực (URL an toàn, không tham số gây lỗi)
+        encoded_prompt = urllib.parse.quote(image_prompt, safe="")
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
 
         ao_val = ai_outfit.get("ao", "Áo Cổ Phục Truyền Thống Việt Nam")
         quan_vay_val = ai_outfit.get("quan_vay", "Quần lụa trắng Bạch Hạc ống rộng")
@@ -875,22 +1069,39 @@ async def generate_outfit_and_image(req: OutfitImageRequest):
                 "phu_kien": phu_kien_val
             },
             "message": ai_message,
-            "image_url": image_url
+            "image_url": image_url,
+            "english_prompt": image_prompt
         }
 
     except Exception as e:
-        # Graceful error handling
+        print(f"[Generate Outfit Image Fallback Error]: {e}")
+        # Luôn trả về kết quả hợp lệ kèm ảnh fallback, tuyệt đối không làm sập ứng dụng
+        fallback = build_culture_fallback_outfit("Tết", "Thanh Lịch", "Nữ", "ao_dai")
+        encoded_prompt = urllib.parse.quote(fallback["image_prompt"], safe="")
         return {
-            "status": "error",
-            "message": f"Không thể xử lý yêu cầu gợi ý y phục: {str(e)}"
+            "status": "success",
+            "garment_name": fallback["name"],
+            "analysis": fallback["loi_khuyen"],
+            "outfit": {
+                "ao": fallback["ao"],
+                "quan_vay": fallback["quan_vay"],
+                "phu_kien": fallback["phu_kien"]
+            },
+            "message": fallback["loi_khuyen"],
+            "image_url": f"https://image.pollinations.ai/prompt/{encoded_prompt}",
+            "english_prompt": fallback["image_prompt"]
         }
 
 # --- ENDPOINT TẠO ẢNH PHỐI ĐỒ AI (Studio Gemini Preview) ---
 @app.post("/api/generate-outfit-preview")
 async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request: Request):
     """
-    Tạo ảnh biến thể y phục ảo từ ảnh mẫu (hoặc sinh ảnh mới) sử dụng Google Gemini Image API
-    với cơ chế bắt lỗi an toàn và fallback sang Pollinations.
+    Tạo ảnh phối đồ AI theo tùy chọn người dùng:
+    - Nhận đầy đủ các trường: garment_type, color, pants_skirt, hat, accessories
+    - Chuẩn hóa toàn bộ thành English Image Prompt siêu thực với từ khóa:
+      'hyper-realistic, 8k resolution, professional studio lighting, detailed traditional Vietnamese fabric and golden embroidery'
+    - Bắt lỗi Quota Exceeded / Quá tải từ Gemini và tự động fallback sang Pollinations.ai,
+      đảm bảo người dùng luôn nhận được ảnh chất lượng cao mà không bị lỗi server.
     """
     try:
         # 1. Thu thập API Key
@@ -899,18 +1110,65 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
         if effective_api_key == "YOUR_API_KEY":
             effective_api_key = ""
 
-        # 2. Đọc các tùy chọn phối đồ
+        # 2. Đọc và chuẩn hóa toàn bộ các tùy chọn phối đồ từ frontend
         opts = req.options or {}
-        garment_name = opts.get("garmentName") or "Việt phục truyền thống"
-        color_name = opts.get("colorName") or opts.get("colorHex") or "Đỏ son / Hoàng kim"
-        bottom_val = opts.get("bottom") or "Quần lụa ống thụng"
-        headdress_val = opts.get("headdress") or "Khăn vấn / Nón"
-        jewelry_val = opts.get("jewelry") or "Kiềng bạc"
-        shoes_val = opts.get("shoes") or "Guốc mộc"
-        bag_val = opts.get("bag") or "Túi cói"
-        hair_val = opts.get("hairstyle") or "Tóc vấn"
+        garment_name = (
+            req.garment_type
+            or opts.get("garment_type")
+            or opts.get("garmentName")
+            or opts.get("garment_id")
+            or "Việt phục truyền thống"
+        )
+        color_name = (
+            req.color
+            or opts.get("color")
+            or opts.get("colorName")
+            or opts.get("colorHex")
+            or "Đỏ son / Hoàng kim"
+        )
+        bottom_val = (
+            req.pants_skirt
+            or opts.get("pants_skirt")
+            or opts.get("bottom")
+            or opts.get("bottomType")
+            or "Quần lụa ống thụng"
+        )
+        headdress_val = (
+            req.hat
+            or opts.get("hat")
+            or opts.get("headdress")
+            or opts.get("headwear")
+            or "Khăn vấn / Nón"
+        )
+        
+        # Gom phụ kiện
+        accessories_val = req.accessories or opts.get("accessories") or opts.get("jewelry") or ""
+        extra_accs = []
+        if accessories_val and accessories_val not in ["Không có", "Giữ nguyên", "none"]:
+            extra_accs.append(accessories_val)
+        for extra_key in ["shoes", "bag", "jewelry"]:
+            val = opts.get(extra_key)
+            if val and val not in ["Không có", "Giữ nguyên", "Không mang túi hoặc quạt", "none"] and val not in extra_accs:
+                extra_accs.append(val)
+        combined_accessories = ", ".join(extra_accs) if extra_accs else "Kiềng bạc hoa sen"
 
-        # 3. Tải ảnh mẫu nguồn nếu có
+        gender_val = req.gender or opts.get("gender") or "nu"
+        occasion_val = req.occasion or opts.get("occasion") or "tet"
+        vibe_val = req.vibe or opts.get("vibe") or "thanh_lich"
+
+        # 3. Chuẩn hóa câu lệnh tạo ảnh (Prompt Mapping) đúng tùy chọn và đầy đủ từ khóa siêu thực
+        standard_prompt = map_fashion_attributes_to_english_prompt(
+            garment_type=garment_name,
+            color=color_name,
+            pants_skirt=bottom_val,
+            hat=headdress_val,
+            accessories=combined_accessories,
+            gender=gender_val,
+            occasion=occasion_val,
+            vibe=vibe_val
+        )
+
+        # 4. Tải ảnh mẫu nguồn nếu có
         source_base64 = None
         source_mime = "image/jpeg"
         if req.source_image_url:
@@ -926,126 +1184,136 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
                     img_url,
                     headers={"User-Agent": "VietPhucRemix/1.0 (fashion-preview)"}
                 )
-                with urllib.request.urlopen(req_dl, timeout=12) as dl_res:
+                with urllib.request.urlopen(req_dl, timeout=8) as dl_res:
                     img_bytes = dl_res.read()
                     source_mime = dl_res.headers.get_content_type() or "image/jpeg"
                     source_base64 = base64.b64encode(img_bytes).decode("utf-8")
             except Exception as dl_err:
                 print(f"[Generate Preview] Tải ảnh mẫu thất bại ({dl_err}), chuyển sang sinh ảnh trực tiếp.")
 
-        # 4. Thử gọi Gemini Image Generation nếu có API key
+        # 5. Thử gọi Gemini Image Generation nếu có API key (bọc trong try-except chặt chẽ)
         image_result = None
         used_model = None
 
         if effective_api_key:
-            prompt_text = (
-                f"Bạn là chuyên gia thời trang y phục cổ truyền Việt Nam. Hãy tạo một bức ảnh người mẫu chân thực mặc trang phục sau:\n"
-                f"- Y phục: {garment_name}\n"
-                f"- Tông màu: {color_name}\n"
-                f"- Quần/Váy: {bottom_val}\n"
-                f"- Khăn/Nón: {headdress_val}\n"
-                f"- Trang sức: {jewelry_val}\n"
-                f"- Giày dép: {shoes_val}\n"
-                f"- Kiểu tóc: {hair_val}\n\n"
-                f"Yêu cầu: Chất lượng cao, chi tiết vải sắc nét, ánh sáng tự nhiên, đúng chuẩn văn hóa truyền thống."
-            )
-
-            models_to_try = [
-                "gemini-3.1-flash-lite-image",
-                "gemini-3.1-flash-image",
-                "gemini-2.5-flash",
-                "gemini-2.0-flash"
-            ]
-
-            parts = [{"text": prompt_text}]
-            if source_base64:
-                parts.insert(0, {
-                    "inline_data": {
-                        "mime_type": source_mime,
-                        "data": source_base64
-                    }
-                })
-
-            payload = {
-                "contents": [{"parts": parts}],
-                "generationConfig": {"temperature": 0.4}
-            }
-            payload_bytes = json.dumps(payload).encode("utf-8")
-
-            for model_name in models_to_try:
-                api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={effective_api_key}"
-                post_req = urllib.request.Request(
-                    api_url,
-                    data=payload_bytes,
-                    headers={"Content-Type": "application/json"}
+            try:
+                prompt_text = (
+                    f"Bạn là chuyên gia thời trang y phục cổ truyền Việt Nam. Hãy tạo một bức ảnh người mẫu chân thực mặc trang phục sau:\n"
+                    f"- Y phục: {garment_name}\n"
+                    f"- Tông màu: {color_name}\n"
+                    f"- Quần/Váy: {bottom_val}\n"
+                    f"- Khăn/Nón: {headdress_val}\n"
+                    f"- Phụ kiện: {combined_accessories}\n\n"
+                    f"Yêu cầu: Chất lượng cao, chi tiết vải sắc nét, ánh sáng tự nhiên, đúng chuẩn văn hóa truyền thống."
                 )
-                try:
-                    with urllib.request.urlopen(post_req, timeout=25) as api_res:
-                        res_json = json.loads(api_res.read().decode("utf-8"))
-                        candidates = res_json.get("candidates", [])
-                        if candidates:
-                            c_parts = candidates[0].get("content", {}).get("parts", [])
-                            for p in c_parts:
-                                if "inlineData" in p and p["inlineData"].get("data"):
-                                    img_data = p["inlineData"]["data"]
-                                    m_type = p["inlineData"].get("mimeType", "image/png")
-                                    image_result = f"data:{m_type};base64,{img_data}"
-                                    used_model = model_name
-                                    break
-                    if image_result:
-                        break
-                except urllib.error.HTTPError as http_err:
-                    print(f"[Gemini Image {http_err.code}] {model_name}: {http_err.reason}")
-                except Exception as ex:
-                    print(f"[Gemini Image Error] {model_name}: {ex}")
 
-        # 5. Fallback tạo ảnh thời trang chất lượng cao qua Pollinations nếu Gemini không có quota Image
+                models_to_try = [
+                    "gemini-2.5-flash",
+                    "gemini-2.0-flash"
+                ]
+
+                parts = [{"text": prompt_text}]
+                if source_base64:
+                    parts.insert(0, {
+                        "inline_data": {
+                            "mime_type": source_mime,
+                            "data": source_base64
+                        }
+                    })
+
+                payload = {
+                    "contents": [{"parts": parts}],
+                    "generationConfig": {"temperature": 0.4}
+                }
+                payload_bytes = json.dumps(payload).encode("utf-8")
+
+                for model_name in models_to_try:
+                    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={effective_api_key}"
+                    post_req = urllib.request.Request(
+                        api_url,
+                        data=payload_bytes,
+                        headers={"Content-Type": "application/json"}
+                    )
+                    try:
+                        with urllib.request.urlopen(post_req, timeout=15) as api_res:
+                            res_json = json.loads(api_res.read().decode("utf-8"))
+                            candidates = res_json.get("candidates", [])
+                            if candidates:
+                                c_parts = candidates[0].get("content", {}).get("parts", [])
+                                for p in c_parts:
+                                    if "inlineData" in p and p["inlineData"].get("data"):
+                                        img_data = p["inlineData"]["data"]
+                                        m_type = p["inlineData"].get("mimeType", "image/png")
+                                        image_result = f"data:{m_type};base64,{img_data}"
+                                        used_model = model_name
+                                        break
+                        if image_result:
+                            break
+                    except urllib.error.HTTPError as http_err:
+                        print(f"[Gemini Quota/HTTP {http_err.code}] {model_name}: {http_err.reason}")
+                    except Exception as ex:
+                        print(f"[Gemini Request Exception] {model_name}: {ex}")
+            except Exception as e_gemini:
+                print(f"[Gemini Image Quota/General Error]: {e_gemini}. Tự động fallback sang template Pollinations.")
+
+        # 6. Fallback tạo ảnh thời trang chất lượng cao qua Pollinations nếu Gemini không có quota Image hoặc lỗi
+        encoded_prompt = urllib.parse.quote(standard_prompt, safe="")
+        pollinations_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+
         if not image_result:
             try:
-                pollinations_prompt = (
-                    f"A photorealistic 8k portrait of a gorgeous Vietnamese model with realistic features, "
-                    f"wearing authentic Vietnamese traditional attire {garment_name}, color scheme {color_name}, "
-                    f"with {headdress_val}, {jewelry_val}, {bottom_val}, {shoes_val}, "
-                    f"traditional background traditional royal or cultural background of ancient Hue citadel, "
-                    f"Hyper-realistic, cinematic lighting, professional studio photography, masterpiece, highly detailed fabric textures, "
-                    f"{PHOTOREALISTIC_STUDIO_KEYWORDS}, "
-                    f"{VIETNAMESE_FABRIC_TEXTURE_KEYWORDS}."
-                )
-                encoded = urllib.parse.quote(pollinations_prompt, safe="")
-                p_url = f"https://image.pollinations.ai/prompt/{encoded}"
-
-                req_p = urllib.request.Request(p_url, headers={"User-Agent": "VietPhucRemix/1.0"})
-                with urllib.request.urlopen(req_p, timeout=20) as p_res:
+                req_p = urllib.request.Request(pollinations_url, headers={"User-Agent": "VietPhucRemix/1.0"})
+                with urllib.request.urlopen(req_p, timeout=12) as p_res:
                     p_bytes = p_res.read()
                     image_result = f"data:image/jpeg;base64,{base64.b64encode(p_bytes).decode('utf-8')}"
                     used_model = "pollinations-remix"
             except Exception as p_err:
-                print(f"[Pollinations Fallback Error]: {p_err}")
+                print(f"[Pollinations direct fallback]: {p_err}")
+                # Nếu tải byte về base64 bị chậm/timeout, dùng trực tiếp link ảnh Pollinations
+                image_result = pollinations_url
+                used_model = "pollinations-direct"
 
+        # Đảm bảo LUÔN trả về success=True kèm ảnh hợp lệ, không bao giờ báo lỗi cứng làm sập giao diện
         if not image_result:
-            if not effective_api_key:
-                return {
-                    "success": False,
-                    "needApiKey": True,
-                    "message": "Chưa có khóa Gemini API. Hãy nhập khóa tại mục Cài Đặt trên trang web."
-                }
-            return {
-                "success": False,
-                "code": "GEMINI_IMAGE_QUOTA_EXHAUSTED",
-                "message": "Không thể tạo ảnh do giới hạn quota Google API. Vui lòng thử lại sau giây lát."
-            }
+            image_result = pollinations_url
+            used_model = "pollinations-direct"
 
         return {
             "success": True,
+            "status": "success",
             "generated_image": image_result,
-            "generated_model": used_model or "gemini-ai"
+            "image_url": image_result,
+            "generated_model": used_model or "pollinations-remix",
+            "english_prompt": standard_prompt,
+            "options_applied": {
+                "garment_type": garment_name,
+                "color": color_name,
+                "pants_skirt": bottom_val,
+                "hat": headdress_val,
+                "accessories": combined_accessories
+            }
         }
 
     except Exception as e:
         print(f"[Generate Outfit Preview Error]: {e}")
+        # Ngay cả khi xảy ra ngoại lệ toàn cục, fallback vẫn cung cấp ảnh cho người dùng
+        fallback_prompt = map_fashion_attributes_to_english_prompt()
+        enc = urllib.parse.quote(fallback_prompt, safe="")
+        fallback_url = f"https://image.pollinations.ai/prompt/{enc}"
         return {
-            "success": False,
-            "message": f"Lỗi tạo ảnh phối đồ: {str(e)}"
+            "success": True,
+            "status": "success",
+            "generated_image": fallback_url,
+            "image_url": fallback_url,
+            "generated_model": "pollinations-fallback",
+            "english_prompt": fallback_prompt,
+            "options_applied": {
+                "garment_type": "Áo Dài",
+                "color": "Đỏ Son",
+                "pants_skirt": "Quần lụa trắng",
+                "hat": "Khăn vành",
+                "accessories": "Kiềng bạc"
+            }
         }
 
 # Include routers
