@@ -644,12 +644,11 @@ export class TraditionalVisualizer3D {
     /**
      * Tự động đặt camera và controls.target để khung hình ôm trọn toàn bộ model.
      *
-     * @param {THREE.Object3D} [model]   - Model cần fit (mặc định: this.modelRoot).
-     * @param {number}         [padding] - Không dùng trực tiếp; factor 1.8 đã tích hợp.
+     * @param {THREE.Object3D} [model] - Model cần fit (mặc định: this.modelRoot).
      */
     fitCameraToModel(model = this.modelRoot) {
         // 1. Tính bounding box thực tế của model (sau scale, position, rotation)
-        const box    = new THREE.Box3().setFromObject(model);
+        const box = new THREE.Box3().setFromObject(model);
 
         // Fallback khi model chưa load (box rỗng)
         if (box.isEmpty()) {
@@ -662,24 +661,22 @@ export class TraditionalVisualizer3D {
         const center = box.getCenter(new THREE.Vector3());
         const size   = box.getSize(new THREE.Vector3());
 
-        // 2. Đặt tâm xoay OrbitControls vào chính giữa mô hình
+        // 2. Đặt tâm xoay OrbitControls vào đúng giữa model
         this.controls.target.copy(center);
 
-        // 3. Tính khoảng cách camera dựa trên chiều kích lớn nhất của model
+        // 3. Tính khoảng cách camera dựa trên kích thước lớn nhất và góc nhìn FOV
         const maxDim = Math.max(size.x, size.y, size.z);
         const fov    = this.camera.fov * (Math.PI / 180);
-        let cameraDistance = Math.abs(maxDim / (2 * Math.tan(fov / 2))) * 1.8;
+        let cameraDist = (maxDim / (2 * Math.tan(fov / 2))) * 1.5;
 
-        this.camera.position.set(center.x, center.y, center.z + cameraDistance);
-
-        // 4. near/far tỉ lệ theo kích thước model — tránh clipping ở mọi khoảng cách
+        this.camera.position.set(center.x, center.y, center.z + cameraDist);
         this.camera.near = maxDim / 100;
         this.camera.far  = maxDim * 100;
         this.camera.updateProjectionMatrix();
 
         // Cập nhật giới hạn zoom theo khoảng cách thực
-        this.controls.minDistance = Math.max(0.5, cameraDistance * 0.2);
-        this.controls.maxDistance = cameraDistance * 3.0;
+        this.controls.minDistance = Math.max(0.5, cameraDist * 0.2);
+        this.controls.maxDistance = cameraDist * 3.0;
         this.controls.update();
         this.render();
     }
@@ -1542,38 +1539,30 @@ export class TraditionalVisualizer3D {
     resize() {
         if (!this.container) return;
 
-        // Đọc kích thước thực tế từ container. clientWidth/clientHeight = 0 khi tab bị ẩn.
-        let width = this.container.clientWidth;
+        // Lấy kích thước thực tế từ div container (không dùng window.innerWidth/innerHeight)
+        let width  = this.container.clientWidth;
         let height = this.container.clientHeight;
 
-        // Fallback: leo lên cây DOM để tìm kích thước thực
+        // Fallback: leo lên cây DOM để tìm kích thước (khi tab bị ẩn, container = 0)
         if (width <= 0 || height <= 0) {
             let el = this.container.parentElement;
             while (el && (width <= 0 || height <= 0)) {
-                width = width <= 0 ? el.clientWidth : width;
+                width  = width  <= 0 ? el.clientWidth  : width;
                 height = height <= 0 ? el.clientHeight : height;
                 el = el.parentElement;
             }
         }
 
-        // Kích thước tối thiểu để tránh màn đen hoàn toàn
-        width = Math.max(width, 120);
+        // Kích thước tối thiểu để tránh canvas = 0 gây lỗi WebGL
+        width  = Math.max(width,  120);
         height = Math.max(height, 120);
 
-        // FOV adaptive: container thấp (mobile) → fov rộng hơn để thấy toàn thân người mẫu
-        // Container cao (để bàn) → fov hẹp hơn (tầm thường)
-        const targetFov = height < 500 ? 54 : height < 700 ? 46 : 42;
-        if (Math.abs(this.camera.fov - targetFov) > 0.5) {
-            this.camera.fov = targetFov;
-        }
-
+        // Cập nhật camera.aspect theo tỷ lệ container thực tế
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
 
-        // setPixelRatio TRƯỚC setSize: Three.js cần biết pixel ratio để tính
-        // internal buffer = width * pixelRatio. Nếu đảo ngược thì buffer sai → nhòe.
-        // updateStyle=false: không ghi đè CSS width/height bằng inline style
-        // (tránh xung đột với .studio-3d-canvas { width: 100% !important })
+        // setPixelRatio TRƯỚC setSize để Three.js tính đúng internal buffer = width * pixelRatio
+        // updateStyle=false: không ghi đè CSS (tránh xung đột với width:100% !important)
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         this.renderer.setSize(width, height, false);
         this.render();
