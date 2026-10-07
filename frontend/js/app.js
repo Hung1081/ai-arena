@@ -26,6 +26,49 @@ const bodyMeasurements = {
 // URL Backend API tương đối khi chạy trên Render hoặc Reverse Proxy
 const API_BASE_URL = '';
 
+/**
+ * Safe JSON fetch wrapper: kiểm tra response.ok và content-type trước khi parse JSON,
+ * bắt lỗi tường minh và tránh hoàn toàn lỗi SyntaxError khi máy chủ trả về HTML (404/500).
+ */
+async function safeFetchJson(url, options = {}) {
+    let res = null;
+    try {
+        res = await fetch(url, options);
+    } catch (networkErr) {
+        console.error(`[Network Error] Không thể kết nối tới ${url}:`, networkErr);
+        throw new Error(`Không thể kết nối máy chủ: ${networkErr.message || "Vui lòng kiểm tra mạng"}`);
+    }
+
+    const contentType = res.headers.get("content-type") || "";
+    let data = null;
+
+    if (contentType.includes("application/json")) {
+        try {
+            data = await res.json();
+        } catch (jsonErr) {
+            console.warn(`[safeFetchJson] Lỗi parse JSON từ ${url}:`, jsonErr);
+        }
+    } else {
+        const text = await res.text();
+        console.warn(`[safeFetchJson] ${url} trả về non-JSON (status ${res.status}):`, text.slice(0, 150));
+        data = {
+            success: false,
+            message: `Máy chủ trả về phản hồi không hợp lệ (${res.status}).`
+        };
+    }
+
+    if (!res.ok) {
+        const errorMsg = (data && (data.message || data.detail || data.error)) || `Lỗi máy chủ (${res.status})`;
+        const err = new Error(errorMsg);
+        err.status = res.status;
+        err.data = data;
+        err.code = data?.code || "";
+        throw err;
+    }
+
+    return data || {};
+}
+
 // Complete 7-Component Active State for Virtual Studio
 const studioState = {
     garmentId: "ao_dai",
@@ -348,7 +391,7 @@ async function generateAIOutfitPreview(force = false) {
 
     try {
         const apiKey = localStorage.getItem("gemini_api_key") || "";
-        const response = await fetch(`${API_BASE_URL}/api/generate-outfit-preview`, {
+        const data = await safeFetchJson(`${API_BASE_URL}/api/generate-outfit-preview`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -361,10 +404,10 @@ async function generateAIOutfitPreview(force = false) {
             signal: aiPreviewAbortController.signal,
             cache: "no-store",
         });
-        const data = await response.json();
-        if (!response.ok || !data.generated_image) {
-            const apiError = new Error(data.message || "Gemini chưa tạo được ảnh.");
-            apiError.code = data.code || "";
+
+        if (!data || !data.generated_image) {
+            const apiError = new Error(data?.message || "Gemini chưa tạo được ảnh.");
+            apiError.code = data?.code || "";
             throw apiError;
         }
         const objectUrl = URL.createObjectURL(dataUrlToBlob(data.generated_image));
@@ -1123,22 +1166,33 @@ async function handleChatSubmit(e) {
             formData.append("occasion", currentQuery);
             if (apiKey) formData.append("apiKey", apiKey);
 
-            // Ưu tiên endpoint /api/analyze-fashion
-            let res = await fetch("/api/analyze-fashion", {
-                method: "POST",
-                body: formData
-            });
-
-            if (!res.ok) {
-                // Fallback thử /api/process-ai
-                res = await fetch("/api/process-ai", {
+            try {
+                data = await safeFetchJson(`${API_BASE_URL}/api/analyze-fashion`, {
                     method: "POST",
                     body: formData
                 });
+            } catch (errAnalyze) {
+                console.warn("[/api/analyze-fashion err, thử /api/process-ai]:", errAnalyze.message);
+                try {
+                    data = await safeFetchJson(`${API_BASE_URL}/api/process-ai`, {
+                        method: "POST",
+                        body: formData
+                    });
+                } catch (errProxy) {
+                    console.warn("[/api/process-ai cũng lỗi]:", errProxy.message);
+                    // Dùng fallback nội bộ an toàn
+                    const fallback = getLocalConsultationFallback(currentQuery);
+                    data = {
+                        success: true,
+                        data: {
+                            costumeName: fallback.look_card.garment_name,
+                            dynasty: fallback.look_card.dynasty,
+                            vibe: fallback.look_card.vibe,
+                            rawAdvice: fallback.text
+                        }
+                    };
+                }
             }
-
-            if (!res.ok) throw new Error("Server error");
-            data = await res.json();
 
         } else {
             // Trường hợp hỏi văn bản thông thường -> Gửi JSON tới /api/chat
@@ -1147,14 +1201,11 @@ async function handleChatSubmit(e) {
                 gemini_api_key: apiKey
             };
 
-            const res = await fetch("/api/chat", {
+            data = await safeFetchJson(`${API_BASE_URL}/api/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
-
-            if (!res.ok) throw new Error("Server error");
-            data = await res.json();
         }
 
         if (typingBubble && typingBubble.parentNode) {
@@ -1551,7 +1602,7 @@ async function handleOccasionSubmit(e) {
     `;
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/recommend`, {
+        const data = await safeFetchJson(`${API_BASE_URL}/api/recommend`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
@@ -1561,8 +1612,7 @@ async function handleOccasionSubmit(e) {
                 element: garmentPref !== "auto" ? garmentPref : null 
             })
         });
-        const data = await res.json();
-        const look = data.look_card;
+        const look = data.look_card || {};
         currentLookRecommendation = look;
 
         resultBox.innerHTML = `
@@ -1837,8 +1887,7 @@ async function checkFirstRunApiKeyPrompt() {
 
     let soKhoaDuPhong = 0;
     try {
-        const res = await fetch(`${API_BASE_URL}/api/health`);
-        const data = await res.json();
+        const data = await safeFetchJson(`${API_BASE_URL}/api/health`);
         soKhoaDuPhong = data.soKhoaDuPhong || 0;
     } catch (e) {
         console.warn("Không kiểm tra được trạng thái khoá dự phòng:", e.message);
@@ -2028,7 +2077,7 @@ async function goiApiGhepAnhThuTraiNghiem(garmentId, garmentName, catalogGarment
 
     try {
         const apiKey = localStorage.getItem("gemini_api_key") || "";
-        const res = await fetch(`${API_BASE_URL}/api/try-on`, {
+        const data = await safeFetchJson(`${API_BASE_URL}/api/try-on`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2040,8 +2089,6 @@ async function goiApiGhepAnhThuTraiNghiem(garmentId, garmentName, catalogGarment
                 apiKey: apiKey
             })
         });
-
-        const data = await res.json();
 
         if (data.needApiKey) {
             openSettingsModal();
