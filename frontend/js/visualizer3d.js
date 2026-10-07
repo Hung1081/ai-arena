@@ -44,10 +44,9 @@ export class TraditionalVisualizer3D {
         // fov=50: góc nhìn rộng hơn để thấy toàn thân trên mọi kích cỡ canvas.
         // GLB rotation.y = -PI/2 → model mặt hướng -Z → camera phải ở -Z.
         this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
-        // Camera ở -Z nhìn vào mặt trước model (model mặt hướng -Z)
-        // Sẽ được đặt lại chính xác bằng fitCameraToModel() sau khi GLB load
-        this.camera.position.set(0, 1.7, -9.5);
-        this.camera.lookAt(0, 1.7, 0);  // nhìn vào tâm model
+        // Vị trí tạm — sẽ được đặt chính xác bằng fitCameraToModel() sau khi GLB load
+        // Camera ở -Z vì model mặt hướng -Z (GLB rotation.y = -PI/2)
+        this.camera.position.set(0, 1.7, -7.0);
 
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -643,46 +642,61 @@ export class TraditionalVisualizer3D {
     }
 
     /**
-     * Căn chỉnh camera để thấy toàn bộ model 3D nằm chính giữa khung hình.
-     * Chuẩn Three.js: Box3 → controls.target.copy(center) → camera.lookAt(center)
+     * Căn chỉnh camera để mô hình 3D hiển thị trọn vẹn, cân đối, chính giữa canvas.
+     *
+     * Pattern chuẩn OrbitControls:
+     *   1. Đo bounding box thực tế (updateMatrixWorld trước)
+     *   2. controls.target.copy(center) — tâm xoay đúng giữa model
+     *   3. camera.position offset theo -Z (model mặt hướng -Z sau rotation.y=-PI/2)
+     *   4. controls.update() — OrbitControls tự set orientation, KHÔNG gọi lookAt()
+     *
+     * KHÔNG gọi camera.lookAt() khi dùng OrbitControls — OrbitControls override
+     * camera orientation tại controls.update(), lookAt() gây xung đột state.
      */
     fitCameraToModel(model = this.modelRoot) {
-        // 1. Cập nhật toàn bộ ma trận world trước khi đo Box3
+        // 1. Cập nhật toàn bộ ma trận world (bắt buộc trước Box3)
         model.updateMatrixWorld(true);
 
-        // 2. Tính bounding box thực tế (body + garment + accessories)
+        // 2. Bounding box thực tế: body + garment + accessories
         const box = new THREE.Box3().setFromObject(model);
         if (box.isEmpty()) {
             box.set(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 3.35, 0.5));
         }
         const center = box.getCenter(new THREE.Vector3());
         const size   = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
 
-        // 3. Đặt tâm xoay OrbitControls vào đúng tâm model
+        // 3. Tâm xoay OrbitControls = tâm hình học thực tế của model
         this.controls.target.copy(center);
 
-        // 4. Khoảng cách camera dựa trên chiều kích lớn nhất
-        const maxDim     = Math.max(size.x, size.y, size.z);
-        const fov        = this.camera.fov * (Math.PI / 180);
-        const cameraDist = (maxDim / (2 * Math.tan(fov / 2))) * 2.5;
+        // 4. Khoảng cách camera: maxDim * 2.0 đủ thấy toàn thân với viền thoải mái
+        //    Không dùng formula FOV phức tạp — maxDim*2 là heuristic chuẩn cho humanoid
+        const cameraDist = maxDim * 2.0;
 
-        // 5. Đặt camera lùi ra -Z (GLB rotation.y=-PI/2 → model mặt hướng -Z)
-        this.camera.position.set(center.x, center.y, center.z - cameraDist);
+        // 5. Camera lùi ra theo -Z (trước mặt model, model mặt hướng -Z)
+        //    offset từ center để model luôn ở giữa camera view
+        this.camera.position.set(
+            center.x,
+            center.y,
+            center.z - cameraDist
+        );
 
-        // 6. lookAt tường minh — đảm bảo camera orientation chính xác
-        this.camera.lookAt(center);
-
-        // 7. Cập nhật aspect + projection matrix
+        // 6. Cập nhật aspect ratio từ container thực tế (không dùng window.innerWidth)
         const contW = Math.max(this.container.clientWidth  || 300, 120);
         const contH = Math.max(this.container.clientHeight || 400, 120);
         this.camera.aspect = contW / contH;
-        this.camera.near   = Math.max(0.01, maxDim / 100);
-        this.camera.far    = maxDim * 100;
+
+        // 7. near/far tỉ lệ theo model — tránh clipping ở mọi khoảng cách zoom
+        this.camera.near = maxDim / 100;
+        this.camera.far  = maxDim * 100;
         this.camera.updateProjectionMatrix();
 
-        // 8. Giới hạn zoom + cập nhật controls
-        this.controls.minDistance = Math.max(0.5, cameraDist * 0.15);
-        this.controls.maxDistance = cameraDist * 3.0;
+        // 8. Giới hạn zoom hợp lý
+        this.controls.minDistance = maxDim * 0.5;
+        this.controls.maxDistance = maxDim * 8.0;
+
+        // 9. controls.update() — OrbitControls tự xử lý camera orientation
+        //    KHÔNG gọi camera.lookAt() — sẽ gây xung đột với OrbitControls
         this.controls.update();
         this.render();
     }
