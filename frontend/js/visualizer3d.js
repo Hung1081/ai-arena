@@ -41,10 +41,11 @@ export class TraditionalVisualizer3D {
 
         this.scene = new THREE.Scene();
         this.scene.background = null;
-        // fov=42: góc nhìn đủ rộng để thấy toàn thân trên mọi khùng cạnh màn hình.
+        // fov=42: góc nhìn đủ rộng để thấy toàn thân trên mọi kích cỡ màn hình.
+        // near=0.1/far=1000: tránh clipping khi zoom vào rất gần hoặc model lớn.
         // Aspect=1 được cập nhật ngay khi resize() gọi lần đầu.
-        this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-        // Y=1.7 = nẽgang tầm mắt người mẫu, trùng với controls.target để camera nhìn thẳng khi khởi động
+        this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 1000);
+        // Vị trí khởi tạo — sẽ được đặt lại chính xác bằng fitCameraToModel() sau khi model load
         this.camera.position.set(0, 1.7, 5.5);
 
         this.renderer = new THREE.WebGLRenderer({
@@ -642,51 +643,62 @@ export class TraditionalVisualizer3D {
 
     /**
      * Tự động đặt camera và controls.target để khung hình ôm trọn toàn bộ model.
-     * Sử dụng THREE.Box3 để đo kích thước thực tế sau khi model đã được scale và định vị.
-     * Được gọi sau khi model 3D load xong hoặc khi resize container lần đầu tiên.
      *
-     * @param {number} padding - Hệ số kâu cách (mặc định 1.18 = thêm 18% khoảng trống viền).
+     * Thuật toán:
+     * 1. Box3.setFromObject(model) → bounding box thực tế
+     * 2. controls.target.copy(center) → camera luôn nhìn vào đúng tâm model
+     * 3. distance = maxDim × 0.5 / tan(fov/2) × padding → ôm trọn cả chiều cao và ngang
+     * 4. camera.near/far cập nhật động → tránh clipping ở mọi khoảng cách
+     *
+     * @param {THREE.Object3D} [model]   - Model cần fit (mặc định: this.modelRoot).
+     * @param {number}         [padding] - Hệ số viền bảo vệ (mặc định 1.25 = +25%).
      */
-    fitCameraToModel(padding = 1.18) {
-        // Thu thập tất cả đối tượng trong scene (modelRoot + các group con)
-        const box = new THREE.Box3().setFromObject(this.modelRoot);
+    fitCameraToModel(model = this.modelRoot, padding = 1.25) {
+        // 1. Đo kích thước thực tế bằng Box3
+        const box = new THREE.Box3().setFromObject(model);
 
-        // Nếu box rỗng (model chưa load), dùng box mặc định cho mannequin tham số
+        // Nếu box rỗng (model chưa load), dùng giá trị mặc định cho mannequin tham số
         if (box.isEmpty()) {
             box.set(
-                new THREE.Vector3(-0.35, 0, -0.35),
-                new THREE.Vector3(0.35, 3.35, 0.35)
+                new THREE.Vector3(-0.4, 0, -0.4),
+                new THREE.Vector3( 0.4, 3.35, 0.4)
             );
         }
 
-        const size = box.getSize(new THREE.Vector3());
+        const size   = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
 
-        // Đặt controls.target vào đúnggim giữa chiều cao model (không phải giữa scene)
-        const targetY = box.min.y + size.y * 0.52;  // 52% từ dưới lên → vùng ngực/ấo (thẩm mỹ hơn bụng)
-        this.controls.target.set(center.x, targetY, center.z);
+        // 2. Gán controls.target vào đúng tâm hình hộp bao
+        this.controls.target.copy(center);
 
-        // Tính khoảng cách camera để thấy toàn bộ chiều cao model trong khung hình
-        const aspect = this.camera.aspect || 1;
+        // 3. Tính khoảng cách camera đủ để thấy toàn bộ model
+        //    maxDim = chiều lớn nhất (cao / rộng / sâu) → đảm bảo ôm trọn mọi hướng
+        const maxDim = Math.max(size.x, size.y, size.z);
         const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
 
-        // halfHeight = chiều cao cần cover / 2 (thêm padding)
-        const halfHeight = (size.y / 2) * padding;
+        // Khoảng cách theo chiều dọc (vertical FOV)
+        let distance = (maxDim * 0.5) / Math.tan(fovRad / 2);
 
-        // halfWidth tính tương tự nhắm cover chiều ngang nếu aspect <1 (mobile portrait)
-        const halfWidth = (size.x / 2) * padding;
+        // Kiểm tra thêm chiều ngang nếu container landscape (aspect > 1)
+        const aspect = this.camera.aspect || 1;
+        if (aspect > 1) {
+            const hFovRad = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
+            const distH   = (maxDim * 0.5) / Math.tan(hFovRad / 2);
+            distance = Math.max(distance, distH);
+        }
+        distance *= padding;
 
-        // Dùng max của 2 giá trị để đảm bảo cả hai chiều đều vừa trong khung hình
-        const distFromHeight = halfHeight / Math.tan(fovRad / 2);
-        const distFromWidth  = halfWidth  / Math.tan((fovRad * aspect) / 2);
-        const distance = Math.max(distFromHeight, distFromWidth);
+        // Đặt camera thẳng trước mặt model, ngang tầm center
+        this.camera.position.set(center.x, center.y, center.z + distance);
 
-        // Đặt camera thẳng trước mặt model, ở độ cao tâm controls.target
-        this.camera.position.set(center.x, targetY, center.z + distance);
+        // 4. Cập nhật near/far động — tránh clipping
+        this.camera.near = 0.1;
+        this.camera.far  = Math.max(1000, distance * 10);
+        this.camera.updateProjectionMatrix();
 
-        // Cập nhật giới hạn zoom: min=1/4 khoảng cách (zoom vào gần), max=2× (zoom ra xa)
-        this.controls.minDistance = Math.max(0.8, distance * 0.28);
-        this.controls.maxDistance = distance * 2.2;
+        // Cập nhật giới hạn zoom
+        this.controls.minDistance = Math.max(0.5, distance * 0.2);
+        this.controls.maxDistance = distance * 3.0;
         this.controls.update();
         this.render();
     }
