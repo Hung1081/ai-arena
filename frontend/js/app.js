@@ -35,6 +35,9 @@ async function safeFetchJson(url, options = {}) {
     try {
         res = await fetch(url, options);
     } catch (networkErr) {
+        if (networkErr.name === "AbortError") {
+            throw networkErr;
+        }
         console.error(`[Network Error] Không thể kết nối tới ${url}:`, networkErr);
         throw new Error(`Không thể kết nối máy chủ: ${networkErr.message || "Vui lòng kiểm tra mạng"}`);
     }
@@ -339,8 +342,12 @@ function setAIPreviewState(state, message = "") {
     if (caption && state === "ready") caption.textContent = message;
 }
 
+/**
+ * Xóa ảnh preview cũ + invalidate generation ID.
+ * KHÔNG abort request đang chạy (tránh vô tình cancel request hợp lệ).
+ * Chỉ dùng khi chắc chắn muốn abort: gọi abortAIPreviewRequest() riêng.
+ */
 function clearOldAIPreview() {
-    abortAIPreviewRequest();
     revokeAIPreviewObjectUrl();
     aiPreviewGenerationId += 1;
     const image = document.getElementById("studio-ai-preview-image");
@@ -350,6 +357,14 @@ function clearOldAIPreview() {
 
 function scheduleAIPreviewGeneration() {
     if (aiPreviewDebounceTimer) clearTimeout(aiPreviewDebounceTimer);
+
+    // Nếu đang generate: chỉ đặt lại UI preview về trống (không abort),
+    // debounce để generate lại sau khi xong. Không abort để tránh AbortError lock.
+    if (isAIGeneratingPreview) {
+        clearOldAIPreview();
+        return;
+    }
+
     clearOldAIPreview();
     if (aiPreviewQuotaMessage) {
         setAIPreviewState("error", aiPreviewQuotaMessage);
@@ -370,11 +385,46 @@ function dataUrlToBlob(dataUrl) {
     return new Blob([bytes], { type: mimeType });
 }
 
+let isAIGeneratingPreview = false;
+
+function setAIPreviewButtonsBusy(busy) {
+    const selectors = [
+        "#studio-ai-regen-btn",
+        "#studio-ai-create-btn",
+        "#studio-ai-retry-btn",
+        "button[onclick*='generateAIOutfitPreview']"
+    ];
+    const buttons = document.querySelectorAll(selectors.join(", "));
+    buttons.forEach(btn => {
+        if (busy) {
+            if (!btn.dataset.originalHtml) {
+                btn.dataset.originalHtml = btn.innerHTML;
+            }
+            btn.disabled = true;
+            btn.classList.add("opacity-60", "cursor-not-allowed");
+            btn.innerHTML = `<span class="inline-flex items-center gap-1.5"><span class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>Đang tạo ảnh...</span>`;
+        } else {
+            btn.disabled = false;
+            btn.classList.remove("opacity-60", "cursor-not-allowed");
+            if (btn.dataset.originalHtml) {
+                btn.innerHTML = btn.dataset.originalHtml;
+            }
+        }
+    });
+}
+
 async function generateAIOutfitPreview(force = false) {
     if (force && aiPreviewDebounceTimer) {
         clearTimeout(aiPreviewDebounceTimer);
         aiPreviewDebounceTimer = null;
     }
+
+    // Chặn request chồng chéo: nếu đang generate thì bỏ qua, không abort request đang chạy
+    if (isAIGeneratingPreview) {
+        console.warn("[AI Preview] Đang tạo ảnh, bỏ qua request mới để tránh AbortError.");
+        return;
+    }
+
     if (force) aiPreviewQuotaMessage = "";
     const config = getStudioAIPreviewConfig();
     if (!config.sourceImageUrl) {
@@ -383,72 +433,118 @@ async function generateAIOutfitPreview(force = false) {
         return;
     }
 
-    clearOldAIPreview();
+    // Đánh dấu đang generate TRƯỚC khi làm bất cứ thứ gì async
+    isAIGeneratingPreview = true;
+    setAIPreviewButtonsBusy(true);
+
+    // Tạo generation ID mới để nhận biết response lỗi thời (stale)
     const generationId = ++aiPreviewGenerationId;
-    aiPreviewAbortController = new AbortController();
+
+    // Abort request cũ (nếu còn), tạo controller mới
+    abortAIPreviewRequest();
+    revokeAIPreviewObjectUrl();
+    const controller = new AbortController();
+    aiPreviewAbortController = controller;
+
+    const image = document.getElementById("studio-ai-preview-image");
+    if (image) image.removeAttribute("src");
     if (force) setStudioViewMode("ai");
     setAIPreviewState("loading");
 
+    let succeeded = false;
     try {
         const apiKey = localStorage.getItem("gemini_api_key") || "";
         const selectedAcc = [
-                config.options.jewelry,
-                config.options.shoes,
-                config.options.bag,
-            ].filter(x => x && x !== "Không có" && x !== "Giữ nguyên" && x !== "Không mang túi hoặc quạt").join(", ");
+            config.options.jewelry,
+            config.options.shoes,
+            config.options.bag,
+        ].filter(x => x && x !== "Không có" && x !== "Giữ nguyên" && x !== "Không mang túi hoặc quạt").join(", ");
 
-            const bodyPayload = {
-                source_image_url: config.sourceImageUrl,
-                options: config.options,
-                garment_type: config.options.garmentName,
-                color: config.options.colorName || config.options.colorHex,
-                pants_skirt: config.options.bottom,
-                hat: config.options.headdress,
-                accessories: selectedAcc,
-            };
+        const bodyPayload = {
+            source_image_url: config.sourceImageUrl,
+            options: config.options,
+            garment_type: config.options.garmentName,
+            color: config.options.colorName || config.options.colorHex,
+            pants_skirt: config.options.bottom,
+            hat: config.options.headdress,
+            accessories: selectedAcc,
+        };
 
-            const data = await safeFetchJson(`${API_BASE_URL}/api/generate-outfit-preview`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(apiKey ? { "x-gemini-api-key": apiKey } : {}),
-                },
-                body: JSON.stringify(bodyPayload),
-                signal: aiPreviewAbortController.signal,
-                cache: "no-store",
-            });
+        const data = await safeFetchJson(`${API_BASE_URL}/api/generate-outfit-preview`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(apiKey ? { "x-gemini-api-key": apiKey } : {}),
+            },
+            body: JSON.stringify(bodyPayload),
+            signal: controller.signal,
+            cache: "no-store",
+        });
 
-            const generatedImg = data?.generated_image || data?.image_url;
-            if (!data || !generatedImg) {
-                const apiError = new Error(data?.message || "Chưa tạo được ảnh phối đồ.");
-                apiError.code = data?.code || "";
-                throw apiError;
-            }
+        // Nếu đây là response lỗi thời (user đã trigger generation mới), bỏ qua
+        if (generationId !== aiPreviewGenerationId) return;
 
-            let previewSrc = "";
-            if (typeof generatedImg === "string" && generatedImg.startsWith("data:")) {
-                const objectUrl = URL.createObjectURL(dataUrlToBlob(generatedImg));
-                if (generationId !== aiPreviewGenerationId) {
-                    URL.revokeObjectURL(objectUrl);
-                    return;
-                }
-                aiPreviewObjectUrl = objectUrl;
-                previewSrc = objectUrl;
-            } else if (generatedImg) {
-                previewSrc = generatedImg;
-            }
-
-            const image = document.getElementById("studio-ai-preview-image");
-            if (image && previewSrc) image.src = previewSrc;
-            const modelLabel = data.generated_model ? ` · ${data.generated_model}` : "";
-            setAIPreviewState("ready", `${config.options.garmentName} · ${config.options.colorName}${modelLabel}`);
-        } catch (error) {
-            if (error.name === "AbortError" || generationId !== aiPreviewGenerationId) return;
-            if (error.code === "GEMINI_IMAGE_QUOTA_EXHAUSTED") aiPreviewQuotaMessage = error.message;
-            setAIPreviewState("error", error.message || "Không thể tạo ảnh AI lúc này.");
-        } finally {
-            if (generationId === aiPreviewGenerationId) aiPreviewAbortController = null;
+        const generatedImg = data?.generated_image || data?.image_url;
+        if (!data || !generatedImg) {
+            const apiError = new Error(data?.message || "Chưa tạo được ảnh phối đồ.");
+            apiError.code = data?.code || "";
+            throw apiError;
         }
+
+        // Nếu backend trả về fallback với success:false, thông báo nhẹ nhàng thay vì error
+        if (data.success === false && data.status === "fallback") {
+            console.warn("[AI Preview] Backend dùng ảnh dự phòng:", data.message);
+        }
+
+        let previewSrc = "";
+        if (typeof generatedImg === "string" && generatedImg.startsWith("data:")) {
+            const objectUrl = URL.createObjectURL(dataUrlToBlob(generatedImg));
+            aiPreviewObjectUrl = objectUrl;
+            previewSrc = objectUrl;
+        } else if (generatedImg) {
+            previewSrc = generatedImg;
+        }
+
+        if (image && previewSrc) image.src = previewSrc;
+        const modelLabel = data.generated_model ? ` · ${data.generated_model}` : "";
+        setAIPreviewState("ready", `${config.options.garmentName} · ${config.options.colorName}${modelLabel}`);
+        succeeded = true;
+
+    } catch (error) {
+        // AbortError: request bị hủy có chủ ý (không phải lỗi người dùng cần thấy)
+        if (error.name === "AbortError") {
+            console.info("[AI Preview] Request bị hủy (AbortError) — bình thường khi đổi phối đồ nhanh.");
+            return; // finally vẫn chạy
+        }
+        // Stale response: generation mới đã được trigger
+        if (generationId !== aiPreviewGenerationId) return;
+
+        // Quota hết: lưu lại để không retry tự động
+        if (error.code === "GEMINI_IMAGE_QUOTA_EXHAUSTED" ||
+            (error.status === 429) ||
+            (error.message && error.message.includes("quota"))) {
+            aiPreviewQuotaMessage = error.message;
+        }
+
+        const userMsg = error.message || "Không thể tạo ảnh AI lúc này. Vui lòng thử lại sau.";
+        setAIPreviewState("error", userMsg);
+        console.error("[AI Preview] Lỗi tạo ảnh:", error);
+
+    } finally {
+        // LUÔN unlock, kể cả khi return sớm trong try/catch
+        isAIGeneratingPreview = false;
+        setAIPreviewButtonsBusy(false);
+        // Chỉ clear controller của chính generation này
+        if (aiPreviewAbortController === controller) {
+            aiPreviewAbortController = null;
+        }
+        // Nếu đang generate xong mà đã có generation mới pending, tự trigger lại
+        if (!succeeded && aiPreviewDebounceTimer === null &&
+            generationId === aiPreviewGenerationId &&
+            !aiPreviewQuotaMessage) {
+            // Không tự retry để tránh loop vô hạn
+        }
+    }
 }
 
 function openAIPreviewMode() {

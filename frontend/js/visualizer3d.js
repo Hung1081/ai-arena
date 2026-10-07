@@ -82,13 +82,22 @@ export class TraditionalVisualizer3D {
         this.buildGarment();
         this.buildAccessories();
         this.loadRealisticBody();
-        this.handleResize = () => this.resize();
+        // Debounce resize để tránh gọi liên tiếp khi kéo cửa sổ hoặc tab switch
+        this._resizeTimer = null;
+        this.handleResize = () => {
+            if (this._resizeTimer) return;
+            this._resizeTimer = requestAnimationFrame(() => {
+                this._resizeTimer = null;
+                this.resize();
+            });
+        };
         window.addEventListener("resize", this.handleResize);
         if (window.ResizeObserver) {
-            this.resizeObserver = new ResizeObserver(() => this.resize());
+            this.resizeObserver = new ResizeObserver(() => this.handleResize());
             this.resizeObserver.observe(this.container);
         }
-        this.resize();
+        // Resize sau khi DOM ổn định (tránh container chưa có kích thước)
+        requestAnimationFrame(() => { this.resize(); });
         this.animate = this.animate.bind(this);
         this.animationFrame = requestAnimationFrame(this.animate);
     }
@@ -1483,24 +1492,32 @@ export class TraditionalVisualizer3D {
 
     resize() {
         if (!this.container) return;
-        const width = this.container.clientWidth;
-        const height = this.container.clientHeight;
 
-        if (width > 0 && height > 0) {
-            this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-            this.render();
-        } else {
-            const fallbackWidth = this.container.parentElement?.clientWidth || 500;
-            const fallbackHeight = this.container.parentElement?.clientHeight || 560;
-            if (fallbackWidth > 0 && fallbackHeight > 0) {
-                this.camera.aspect = fallbackWidth / fallbackHeight;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(fallbackWidth, fallbackHeight);
-                this.render();
+        // Đọc kích thước thực tế từ container. clientWidth/clientHeight = 0 khi tab bị ẩn.
+        let width = this.container.clientWidth;
+        let height = this.container.clientHeight;
+
+        // Fallback: leo lên cây DOM để tìm kích thước thực
+        if (width <= 0 || height <= 0) {
+            let el = this.container.parentElement;
+            while (el && (width <= 0 || height <= 0)) {
+                width = width <= 0 ? el.clientWidth : width;
+                height = height <= 0 ? el.clientHeight : height;
+                el = el.parentElement;
             }
         }
+
+        // Kích thước tối thiểu để tránh màn đen hoàn toàn
+        width = Math.max(width, 120);
+        height = Math.max(height, 120);
+
+        // updateStyle=false: không ghi đè CSS width/height bằng inline style
+        // (tránh xung đột với .studio-3d-canvas { width: 100% !important })
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(width, height, false);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.render();
     }
 
     render() {

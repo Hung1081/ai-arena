@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import asyncio
 import base64
 import json
 import random
@@ -76,9 +77,25 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def custom_global_exception_handler(request: Request, exc: Exception):
+    if request.url.path == "/api/generate-outfit-preview":
+        fallback_prompt = "hyper-realistic, photorealistic 8k resolution, cinematic lighting, professional studio photography, Vietnamese traditional dress Ao Dai, 85mm lens"
+        enc = urllib.parse.quote(fallback_prompt, safe="")
+        fallback_url = f"https://image.pollinations.ai/prompt/{enc}"
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": False,
+                "status": "fallback",
+                "message": f"Dịch vụ AI đang bận hoặc quá tải, đã tự động dùng chế độ dự phòng an toàn ({str(exc)[:100]}).",
+                "image_url": fallback_url,
+                "generated_image": fallback_url,
+                "generated_model": "pollinations-fallback",
+                "english_prompt": fallback_prompt
+            }
+        )
     if request.url.path.startswith("/api/"):
         return JSONResponse(
-            status_code=500,
+            status_code=200,
             content={"success": False, "status": "error", "message": f"Lỗi xử lý API: {str(exc)}", "code": 500}
         )
     return JSONResponse(status_code=500, content={"detail": str(exc)})
@@ -1191,9 +1208,10 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
             except Exception as dl_err:
                 print(f"[Generate Preview] Tải ảnh mẫu thất bại ({dl_err}), chuyển sang sinh ảnh trực tiếp.")
 
-        # 5. Thử gọi Gemini Image Generation nếu có API key (bọc trong try-except chặt chẽ)
+        # 5. Gọi Gemini Image Generation trong thread riêng (tránh block event loop FastAPI)
         image_result = None
         used_model = None
+        quota_exhausted = False
 
         if effective_api_key:
             try:
@@ -1227,64 +1245,97 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
                 }
                 payload_bytes = json.dumps(payload).encode("utf-8")
 
-                for model_name in models_to_try:
-                    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={effective_api_key}"
+                def _call_gemini_sync(model_name: str) -> Optional[str]:
+                    """Blocking urllib call — chạy trong thread executor, không block event loop."""
+                    api_url = (
+                        f"https://generativelanguage.googleapis.com/v1beta/models/"
+                        f"{model_name}:generateContent?key={effective_api_key}"
+                    )
                     post_req = urllib.request.Request(
                         api_url,
                         data=payload_bytes,
                         headers={"Content-Type": "application/json"}
                     )
+                    with urllib.request.urlopen(post_req, timeout=25) as api_res:
+                        res_json = json.loads(api_res.read().decode("utf-8"))
+                    candidates = res_json.get("candidates", [])
+                    if not candidates:
+                        return None
+                    c_parts = candidates[0].get("content", {}).get("parts", [])
+                    for p in c_parts:
+                        if "inlineData" in p and p["inlineData"].get("data"):
+                            img_data = p["inlineData"]["data"]
+                            m_type = p["inlineData"].get("mimeType", "image/png")
+                            return f"data:{m_type};base64,{img_data}"
+                    return None
+
+                loop = asyncio.get_event_loop()
+                for model_name in models_to_try:
                     try:
-                        with urllib.request.urlopen(post_req, timeout=15) as api_res:
-                            res_json = json.loads(api_res.read().decode("utf-8"))
-                            candidates = res_json.get("candidates", [])
-                            if candidates:
-                                c_parts = candidates[0].get("content", {}).get("parts", [])
-                                for p in c_parts:
-                                    if "inlineData" in p and p["inlineData"].get("data"):
-                                        img_data = p["inlineData"]["data"]
-                                        m_type = p["inlineData"].get("mimeType", "image/png")
-                                        image_result = f"data:{m_type};base64,{img_data}"
-                                        used_model = model_name
-                                        break
-                        if image_result:
+                        img = await loop.run_in_executor(
+                            None, _call_gemini_sync, model_name
+                        )
+                        if img:
+                            image_result = img
+                            used_model = model_name
                             break
                     except urllib.error.HTTPError as http_err:
-                        print(f"[Gemini Quota/HTTP {http_err.code}] {model_name}: {http_err.reason}")
+                        status_code = http_err.code
+                        print(f"[Gemini HTTP {status_code}] {model_name}: {http_err.reason}")
+                        # 429 = Quota Exceeded, 503 = Service Unavailable
+                        if status_code in (429, 503):
+                            quota_exhausted = True
+                            print(f"[Gemini Quota/Overload] {model_name}: fallback sang Pollinations.")
+                            break  # Không thử model tiếp theo khi quota hết
+                        # 4xx khác: thử model tiếp theo
+                    except (TimeoutError, OSError) as timeout_err:
+                        print(f"[Gemini Timeout] {model_name}: {timeout_err}")
                     except Exception as ex:
-                        print(f"[Gemini Request Exception] {model_name}: {ex}")
-            except Exception as e_gemini:
-                print(f"[Gemini Image Quota/General Error]: {e_gemini}. Tự động fallback sang template Pollinations.")
+                        print(f"[Gemini Exception] {model_name}: {type(ex).__name__}: {ex}")
 
-        # 6. Fallback tạo ảnh thời trang chất lượng cao qua Pollinations nếu Gemini không có quota Image hoặc lỗi
+            except Exception as e_gemini:
+                print(f"[Gemini Image General Error]: {type(e_gemini).__name__}: {e_gemini}")
+
+        # 6. Fallback sang Pollinations nếu Gemini lỗi/hết quota
         encoded_prompt = urllib.parse.quote(standard_prompt, safe="")
-        pollinations_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        # Thêm seed ngẫu nhiên để tránh cache ảnh cũ
+        pollinations_seed = random.randint(1000, 9999)
+        pollinations_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={pollinations_seed}&width=768&height=1024&nologo=true"
 
         if not image_result:
+            def _fetch_pollinations_sync() -> Optional[bytes]:
+                req_p = urllib.request.Request(
+                    pollinations_url,
+                    headers={"User-Agent": "VietPhucRemix/1.0"}
+                )
+                with urllib.request.urlopen(req_p, timeout=20) as p_res:
+                    return p_res.read()
+
             try:
-                req_p = urllib.request.Request(pollinations_url, headers={"User-Agent": "VietPhucRemix/1.0"})
-                with urllib.request.urlopen(req_p, timeout=12) as p_res:
-                    p_bytes = p_res.read()
-                    image_result = f"data:image/jpeg;base64,{base64.b64encode(p_bytes).decode('utf-8')}"
-                    used_model = "pollinations-remix"
+                loop = asyncio.get_event_loop()
+                p_bytes = await loop.run_in_executor(None, _fetch_pollinations_sync)
+                image_result = f"data:image/jpeg;base64,{base64.b64encode(p_bytes).decode('utf-8')}"
+                used_model = "pollinations-remix"
             except Exception as p_err:
-                print(f"[Pollinations direct fallback]: {p_err}")
-                # Nếu tải byte về base64 bị chậm/timeout, dùng trực tiếp link ảnh Pollinations
+                print(f"[Pollinations fallback error]: {type(p_err).__name__}: {p_err}")
+                # Cuối cùng: dùng trực tiếp URL (browser tự tải)
                 image_result = pollinations_url
                 used_model = "pollinations-direct"
 
-        # Đảm bảo LUÔN trả về success=True kèm ảnh hợp lệ, không bao giờ báo lỗi cứng làm sập giao diện
+        # Đảm bảo LUÔN có ảnh để trả về
         if not image_result:
             image_result = pollinations_url
             used_model = "pollinations-direct"
 
+        # Trả về kết quả — LUÔN success:True khi có ảnh, dù dùng fallback
         return {
             "success": True,
-            "status": "success",
+            "status": "success" if used_model not in ("pollinations-remix", "pollinations-direct", "pollinations-fallback") else "fallback",
             "generated_image": image_result,
             "image_url": image_result,
             "generated_model": used_model or "pollinations-remix",
             "english_prompt": standard_prompt,
+            "quota_exhausted": quota_exhausted,
             "options_applied": {
                 "garment_type": garment_name,
                 "color": color_name,
@@ -1295,26 +1346,45 @@ async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request
         }
 
     except Exception as e:
-        print(f"[Generate Outfit Preview Error]: {e}")
-        # Ngay cả khi xảy ra ngoại lệ toàn cục, fallback vẫn cung cấp ảnh cho người dùng
-        fallback_prompt = map_fashion_attributes_to_english_prompt()
+        print(f"[Generate Outfit Preview CRITICAL ERROR]: {type(e).__name__}: {e}")
+        # Tuyệt đối không để raise 500 HTML. Luôn trả về JSON an toàn với fallback URL.
+        fallback_prompt = "hyper-realistic, photorealistic 8k resolution, cinematic lighting, professional studio photography, sharp focus, Vietnamese traditional dress Ao Dai, 85mm lens, f/1.8"
+        try:
+            fallback_prompt = map_fashion_attributes_to_english_prompt()
+        except Exception:
+            pass
         enc = urllib.parse.quote(fallback_prompt, safe="")
-        fallback_url = f"https://image.pollinations.ai/prompt/{enc}"
-        return {
-            "success": True,
-            "status": "success",
-            "generated_image": fallback_url,
-            "image_url": fallback_url,
-            "generated_model": "pollinations-fallback",
-            "english_prompt": fallback_prompt,
-            "options_applied": {
-                "garment_type": "Áo Dài",
-                "color": "Đỏ Son",
-                "pants_skirt": "Quần lụa trắng",
-                "hat": "Khăn vành",
-                "accessories": "Kiềng bạc"
+        fallback_seed = random.randint(100, 9999)
+        fallback_url = f"https://image.pollinations.ai/prompt/{enc}?seed={fallback_seed}&width=768&height=1024&nologo=true"
+        # Phân loại lỗi để frontend nhận biết
+        err_str = str(e)
+        err_code = "GEMINI_IMAGE_QUOTA_EXHAUSTED" if any(
+            kw in err_str.lower() for kw in ["quota", "429", "rate limit", "resource exhausted"]
+        ) else "SERVER_ERROR"
+        return JSONResponse(
+            status_code=200,  # Trả 200 để frontend không throw, tự xử lý qua field success/code
+            content={
+                "success": False,
+                "status": "fallback",
+                "code": err_code,
+                "message": (
+                    "API tạo ảnh tạm thời hết quota hoặc quá tải. Vui lòng thử lại sau."
+                    if err_code == "GEMINI_IMAGE_QUOTA_EXHAUSTED"
+                    else f"Dịch vụ AI đang bận ({err_str[:80]}), đã chuyển sang ảnh dự phòng."
+                ),
+                "image_url": fallback_url,
+                "generated_image": fallback_url,
+                "generated_model": "pollinations-fallback",
+                "english_prompt": fallback_prompt,
+                "options_applied": {
+                    "garment_type": "Áo Dài",
+                    "color": "Đỏ Son",
+                    "pants_skirt": "Quần lụa trắng",
+                    "hat": "Khăn vành",
+                    "accessories": "Kiềng bạc"
+                }
             }
-        }
+        )
 
 # Include routers
 app.include_router(image_router)
