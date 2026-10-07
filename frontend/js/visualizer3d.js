@@ -643,55 +643,44 @@ export class TraditionalVisualizer3D {
     }
 
     /**
-     * Tự động căn chỉnh camera để khung hình thấy toàn bộ người mẫu 3D.
-     *
-     * LƯU Ý KIẾN TRÚC:
-     * - GLB body có rotation.y = -PI/2 → model mặt hướng -Z
-     * - Camera phải đặt ở -Z (âm) để nhìn VÀO MẶT model, không phải lưng
-     * - Chiều cao cố định 3.35 units (được set trong loadRealisticBody)
+     * Căn chỉnh camera để thấy toàn bộ model 3D nằm chính giữa khung hình.
+     * Chuẩn Three.js: Box3 → controls.target.copy(center) → camera.lookAt(center)
      */
     fitCameraToModel(model = this.modelRoot) {
-        // Cập nhật matrix để Box3 đo đúng
+        // 1. Cập nhật toàn bộ ma trận world trước khi đo Box3
         model.updateMatrixWorld(true);
 
-        // Đo bounding box thực tế
+        // 2. Tính bounding box thực tế (body + garment + accessories)
         const box = new THREE.Box3().setFromObject(model);
         if (box.isEmpty()) {
             box.set(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 3.35, 0.5));
         }
-
         const center = box.getCenter(new THREE.Vector3());
         const size   = box.getSize(new THREE.Vector3());
-        const modelH = size.y; // chiều cao thực tế của model (thường ~3.35)
 
-        // Target: căn giữa theo chiều cao model, force X=0 Z=0
-        // (model được build đối xứng quanh trục Y — center.x/z có thể lệch nhẹ do floating point)
-        const targetY = center.y; // giữa chiều cao model
-        this.controls.target.set(0, targetY, 0);
+        // 3. Đặt tâm xoay OrbitControls vào đúng tâm model
+        this.controls.target.copy(center);
 
-        // Cập nhật aspect từ container thực tế TRƯỚC khi tính distance
+        // 4. Khoảng cách camera dựa trên chiều kích lớn nhất
+        const maxDim     = Math.max(size.x, size.y, size.z);
+        const fov        = this.camera.fov * (Math.PI / 180);
+        const cameraDist = (maxDim / (2 * Math.tan(fov / 2))) * 2.5;
+
+        // 5. Đặt camera lùi ra -Z (GLB rotation.y=-PI/2 → model mặt hướng -Z)
+        this.camera.position.set(center.x, center.y, center.z - cameraDist);
+
+        // 6. lookAt tường minh — đảm bảo camera orientation chính xác
+        this.camera.lookAt(center);
+
+        // 7. Cập nhật aspect + projection matrix
         const contW = Math.max(this.container.clientWidth  || 300, 120);
         const contH = Math.max(this.container.clientHeight || 400, 120);
         this.camera.aspect = contW / contH;
-
-        // Tính distance để thấy toàn bộ chiều cao model + 150% viền bảo vệ
-        const fovRad = this.camera.fov * (Math.PI / 180);
-        const halfH  = (modelH / 2) * 2.5;
-        let cameraDist = halfH / Math.tan(fovRad / 2);
-
-        // Portrait: cần lùi thêm để chiều ngang đủ thấy model
-        if (contW < contH) {
-            cameraDist = Math.max(cameraDist, cameraDist * (contH / contW) * 0.7);
-        }
-
-        // Camera ở -Z nhìn vào mặt trước model (model mặt hướng -Z sau rotation -PI/2)
-        // X=0 để model ở đúng giữa canvas theo chiều ngang
-        this.camera.position.set(0, targetY, -cameraDist);
-
-        this.camera.near = Math.max(0.01, cameraDist * 0.01);
-        this.camera.far  = Math.max(100, cameraDist * 20);
+        this.camera.near   = Math.max(0.01, maxDim / 100);
+        this.camera.far    = maxDim * 100;
         this.camera.updateProjectionMatrix();
 
+        // 8. Giới hạn zoom + cập nhật controls
         this.controls.minDistance = Math.max(0.5, cameraDist * 0.15);
         this.controls.maxDistance = cameraDist * 3.0;
         this.controls.update();
