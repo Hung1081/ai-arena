@@ -1048,12 +1048,12 @@
         </div>
     </div>
 
-    <!-- Three.js is served locally by backend/server.js; no external CDN is required. -->
+    <!-- Three.js CDN unpkg mapping -->
     <script type="importmap">
         {
             "imports": {
-                "three": "/vendor/three/build/three.module.js",
-                "three/addons/": "/vendor/three/examples/jsm/"
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>

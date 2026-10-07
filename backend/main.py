@@ -15,7 +15,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -78,11 +78,21 @@ class ChatRequest(BaseModel):
     garment_choice: Optional[str] = None
 
 class TryOnRequest(BaseModel):
-    image_base64: str
+    image_base64: Optional[str] = None
     image_mime_type: Optional[str] = "image/jpeg"
-    garment_id: str
+    garment_id: Optional[str] = None
+    garment_name: Optional[str] = None
+    garment_description: Optional[str] = None
+    color_hex: Optional[str] = None
+    apiKey: Optional[str] = None
     gemini_api_key: Optional[str] = None
     query: Optional[str] = None
+
+class GenerateOutfitPreviewRequest(BaseModel):
+    source_image_url: Optional[str] = None
+    options: Optional[Dict[str, Any]] = None
+    apiKey: Optional[str] = None
+    gemini_api_key: Optional[str] = None
 
 class RecommendRequest(BaseModel):
     occasion: Optional[str] = "tet"
@@ -268,7 +278,15 @@ def build_culture_fallback_outfit(dip: str, vibe: str, gioi_tinh: str, y_phuc: s
 # --- Standard API Routes ---
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "message": "Vietnamese Traditional Stylist Server is operational."}
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    has_key = bool(gemini_key and gemini_key != "YOUR_API_KEY")
+    return {
+        "status": "online",
+        "message": "Vietnamese Traditional Stylist Server is operational.",
+        "server": "Cô Tư Cổ Phục Stylist API (FastAPI)",
+        "geminiKeyConfigured": has_key,
+        "soKhoaDuPhong": 1 if has_key else 0
+    }
 
 @app.get("/api/catalog")
 def get_catalog():
@@ -323,43 +341,104 @@ def consult_stylist(req: ChatRequest):
     return result
 
 @app.post("/api/try-on")
-def virtual_try_on(req: TryOnRequest):
-    """Virtual Try-On analysis endpoint using Gemini Vision."""
-    effective_api_key = req.gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
-    garment_id = req.garment_id
+def virtual_try_on(req: TryOnRequest, raw_request: Request):
+    """Virtual Try-On analysis endpoint using Gemini Vision + Image Generation."""
+    try:
+        client_key = req.apiKey or req.gemini_api_key or raw_request.headers.get("x-gemini-api-key", "")
+        effective_api_key = (client_key.strip() if client_key else "") or os.getenv("GEMINI_API_KEY", "")
+        if effective_api_key == "YOUR_API_KEY":
+            effective_api_key = ""
 
-    garment_map = {
-        "ao_dai": "Áo Dài Truyền Thống Việt Nam",
-        "ngu_than": "Áo Ngũ Thân & Áo Tấc Triều Nguyễn",
-        "nhat_binh": "Áo Nhật Bình Cung Đình Huế",
-        "tu_than": "Áo Tứ Thân Kinh Bắc & Yếm Đào",
-        "ao_ba_ba": "Áo Bà Ba Nam Bộ & Khăn Rằn",
-        "trang_phuc_dan_toc": "Trang Phục Thổ Cẩm Vùng Cao Tây Bắc"
-    }
-    garment_name = garment_map.get(garment_id, "Cổ Phục Việt Nam")
+        garment_map = {
+            "ao_dai": "Áo Dài Truyền Thống Việt Nam",
+            "ngu_than": "Áo Ngũ Thân & Áo Tấc Triều Nguyễn",
+            "nhat_binh": "Áo Nhật Bình Cung Đình Huế",
+            "tu_than": "Áo Tứ Thân Kinh Bắc & Yếm Đào",
+            "ao_ba_ba": "Áo Bà Ba Nam Bộ & Khăn Rằn",
+            "trang_phuc_dan_toc": "Trang Phục Thổ Cẩm Vùng Cao Tây Bắc"
+        }
+        garment_name = req.garment_name or garment_map.get(req.garment_id, "Cổ Phục Việt Nam")
+        desc = req.garment_description or ""
+        color = req.color_hex or ""
 
-    prompt = (
-        f"Bạn là chuyên gia thẩm định và phối đồ y phục truyền thống Việt Nam (Việt Phục Remix).\n"
-        f"Người dùng muốn thử mặc bộ trang phục: {garment_name}.\n"
-        f"Hãy quan sát ảnh chân dung người dùng tải lên và phân tích nét mặt, độ hài hòa và lời khuyên phụ kiện đi kèm."
-    )
-
-    analysis = None
-    if effective_api_key and effective_api_key != "YOUR_API_KEY":
-        analysis = call_gemini_api(effective_api_key, prompt, req.image_base64, req.image_mime_type)
-
-    if not analysis:
-        analysis = (
-            f"Khuôn mặt và thần thái của bạn mang nét duyên dáng, đoan trang thuần khiết Á Đông, rất hài hòa với phom dáng của **{garment_name}**. "
-            f"Khi khoác lên mình tà y phục này kết hợp cùng kiểu tóc búi trâm và kiềng bạc, tổng thể sẽ toát lên trọn vẹn khí chất Đại Việt mực thước và thanh cao."
+        prompt = (
+            f"Bạn là chuyên gia thẩm định và phối đồ y phục truyền thống Việt Nam (Việt Phục Remix).\n"
+            f"Người dùng muốn thử mặc bộ trang phục: {garment_name} {desc}.\n"
+            f"Hãy quan sát ảnh chân dung người dùng tải lên và phân tích nét mặt, độ hài hòa và lời khuyên phụ kiện đi kèm."
         )
 
-    return {
-        "status": "success",
-        "garment_id": garment_id,
-        "garment_name": garment_name,
-        "analysis": analysis
-    }
+        analysis = None
+        if effective_api_key and req.image_base64:
+            analysis = call_gemini_api(effective_api_key, prompt, req.image_base64, req.image_mime_type or "image/jpeg")
+
+        if not analysis:
+            analysis = (
+                f"Khuôn mặt và thần thái của bạn mang nét duyên dáng, đoan trang thuần khiết Á Đông, rất hài hòa với phom dáng của **{garment_name}**. "
+                f"Khi khoác lên mình tà y phục này kết hợp cùng kiểu tóc búi trâm và kiềng bạc, tổng thể sẽ toát lên trọn vẹn khí chất Đại Việt mực thước và thanh cao."
+            )
+
+        blended_image = None
+        if effective_api_key and req.image_base64:
+            try:
+                models_to_try = [
+                    "gemini-3.1-flash-lite-image",
+                    "gemini-3.1-flash-image",
+                    "gemini-2.5-flash"
+                ]
+                cau_lenh = (
+                    f"Bạn là nhiếp ảnh gia thời trang. Hãy ghép khuôn mặt và thần thái người trong ảnh vào bộ trang phục: {garment_name} ({desc}), tông màu {color}.\n"
+                    f"Yêu cầu: Giữ nguyên khuôn mặt, làn da của người trong ảnh; trang phục ôm dáng tự nhiên, ánh sáng đồng nhất, liền mạch như ảnh chụp thật."
+                )
+                raw_b64 = req.image_base64
+                if "base64," in raw_b64:
+                    raw_b64 = raw_b64.split("base64,")[1]
+
+                parts = [
+                    {"inline_data": {"mime_type": req.image_mime_type or "image/jpeg", "data": raw_b64}},
+                    {"text": cau_lenh}
+                ]
+                payload = {"contents": [{"parts": parts}]}
+                payload_bytes = json.dumps(payload).encode("utf-8")
+
+                for m in models_to_try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={effective_api_key}"
+                    r = urllib.request.Request(url, data=payload_bytes, headers={"Content-Type": "application/json"})
+                    try:
+                        with urllib.request.urlopen(r, timeout=20) as resp:
+                            res_json = json.loads(resp.read().decode("utf-8"))
+                            cands = res_json.get("candidates", [])
+                            if cands:
+                                p_list = cands[0].get("content", {}).get("parts", [])
+                                for p in p_list:
+                                    if "inlineData" in p and p["inlineData"].get("data"):
+                                        m_type = p["inlineData"].get("mimeType", "image/png")
+                                        blended_image = f"data:{m_type};base64,{p['inlineData']['data']}"
+                                        break
+                        if blended_image:
+                            break
+                    except Exception:
+                        continue
+            except Exception as e_blend:
+                print(f"[Try-on blend error]: {e_blend}")
+
+        return {
+            "success": True,
+            "status": "success",
+            "garment_id": req.garment_id or "ao_dai",
+            "garment_name": garment_name,
+            "analysis": analysis,
+            "blended_image": blended_image,
+            "needApiKey": not bool(effective_api_key)
+        }
+    except Exception as e:
+        print(f"[Virtual Try-On Error]: {e}")
+        return {
+            "success": False,
+            "status": "error",
+            "message": f"Lỗi thử đồ: {str(e)}",
+            "analysis": "Không thể phân tích ảnh lúc này. Vui lòng thử lại sau.",
+            "blended_image": None
+        }
 
 def generate_english_image_prompt(
     look: Dict[str, Any],
@@ -472,6 +551,7 @@ def recommend_outfit(req: RecommendRequest):
 
     # 3. Đưa image_url và các trường tương ứng vào đối tượng JSON trả về
     result["status"] = "success"
+    result["success"] = True
     result["image_url"] = image_url
     result["english_prompt"] = english_prompt
     result["garment_name"] = look.get("garment_name")
@@ -588,6 +668,166 @@ async def generate_outfit_and_image(req: OutfitImageRequest):
         return {
             "status": "error",
             "message": f"Không thể xử lý yêu cầu gợi ý y phục: {str(e)}"
+        }
+
+# --- ENDPOINT TẠO ẢNH PHỐI ĐỒ AI (Studio Gemini Preview) ---
+@app.post("/api/generate-outfit-preview")
+async def generate_outfit_preview(req: GenerateOutfitPreviewRequest, raw_request: Request):
+    """
+    Tạo ảnh biến thể y phục ảo từ ảnh mẫu (hoặc sinh ảnh mới) sử dụng Google Gemini Image API
+    với cơ chế bắt lỗi an toàn và fallback sang Pollinations.
+    """
+    try:
+        # 1. Thu thập API Key
+        client_key = req.apiKey or req.gemini_api_key or raw_request.headers.get("x-gemini-api-key", "")
+        effective_api_key = (client_key.strip() if client_key else "") or os.getenv("GEMINI_API_KEY", "")
+        if effective_api_key == "YOUR_API_KEY":
+            effective_api_key = ""
+
+        # 2. Đọc các tùy chọn phối đồ
+        opts = req.options or {}
+        garment_name = opts.get("garmentName") or "Việt phục truyền thống"
+        color_name = opts.get("colorName") or opts.get("colorHex") or "Đỏ son / Hoàng kim"
+        bottom_val = opts.get("bottom") or "Quần lụa ống thụng"
+        headdress_val = opts.get("headdress") or "Khăn vấn / Nón"
+        jewelry_val = opts.get("jewelry") or "Kiềng bạc"
+        shoes_val = opts.get("shoes") or "Guốc mộc"
+        bag_val = opts.get("bag") or "Túi cói"
+        hair_val = opts.get("hairstyle") or "Tóc vấn"
+
+        # 3. Tải ảnh mẫu nguồn nếu có
+        source_base64 = None
+        source_mime = "image/jpeg"
+        if req.source_image_url:
+            try:
+                img_url = req.source_image_url
+                if "commons.wikimedia.org" in img_url and "/Special:FilePath/" in img_url:
+                    if "?" in img_url:
+                        img_url += "&width=1200"
+                    else:
+                        img_url += "?width=1200"
+
+                req_dl = urllib.request.Request(
+                    img_url,
+                    headers={"User-Agent": "VietPhucRemix/1.0 (fashion-preview)"}
+                )
+                with urllib.request.urlopen(req_dl, timeout=12) as dl_res:
+                    img_bytes = dl_res.read()
+                    source_mime = dl_res.headers.get_content_type() or "image/jpeg"
+                    source_base64 = base64.b64encode(img_bytes).decode("utf-8")
+            except Exception as dl_err:
+                print(f"[Generate Preview] Tải ảnh mẫu thất bại ({dl_err}), chuyển sang sinh ảnh trực tiếp.")
+
+        # 4. Thử gọi Gemini Image Generation nếu có API key
+        image_result = None
+        used_model = None
+
+        if effective_api_key:
+            prompt_text = (
+                f"Bạn là chuyên gia thời trang y phục cổ truyền Việt Nam. Hãy tạo một bức ảnh người mẫu chân thực mặc trang phục sau:\n"
+                f"- Y phục: {garment_name}\n"
+                f"- Tông màu: {color_name}\n"
+                f"- Quần/Váy: {bottom_val}\n"
+                f"- Khăn/Nón: {headdress_val}\n"
+                f"- Trang sức: {jewelry_val}\n"
+                f"- Giày dép: {shoes_val}\n"
+                f"- Kiểu tóc: {hair_val}\n\n"
+                f"Yêu cầu: Chất lượng cao, chi tiết vải sắc nét, ánh sáng tự nhiên, đúng chuẩn văn hóa truyền thống."
+            )
+
+            models_to_try = [
+                "gemini-3.1-flash-lite-image",
+                "gemini-3.1-flash-image",
+                "gemini-2.5-flash",
+                "gemini-2.0-flash"
+            ]
+
+            parts = [{"text": prompt_text}]
+            if source_base64:
+                parts.insert(0, {
+                    "inline_data": {
+                        "mime_type": source_mime,
+                        "data": source_base64
+                    }
+                })
+
+            payload = {
+                "contents": [{"parts": parts}],
+                "generationConfig": {"temperature": 0.4}
+            }
+            payload_bytes = json.dumps(payload).encode("utf-8")
+
+            for model_name in models_to_try:
+                api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={effective_api_key}"
+                post_req = urllib.request.Request(
+                    api_url,
+                    data=payload_bytes,
+                    headers={"Content-Type": "application/json"}
+                )
+                try:
+                    with urllib.request.urlopen(post_req, timeout=25) as api_res:
+                        res_json = json.loads(api_res.read().decode("utf-8"))
+                        candidates = res_json.get("candidates", [])
+                        if candidates:
+                            c_parts = candidates[0].get("content", {}).get("parts", [])
+                            for p in c_parts:
+                                if "inlineData" in p and p["inlineData"].get("data"):
+                                    img_data = p["inlineData"]["data"]
+                                    m_type = p["inlineData"].get("mimeType", "image/png")
+                                    image_result = f"data:{m_type};base64,{img_data}"
+                                    used_model = model_name
+                                    break
+                    if image_result:
+                        break
+                except urllib.error.HTTPError as http_err:
+                    print(f"[Gemini Image {http_err.code}] {model_name}: {http_err.reason}")
+                except Exception as ex:
+                    print(f"[Gemini Image Error] {model_name}: {ex}")
+
+        # 5. Fallback tạo ảnh thời trang chất lượng cao qua Pollinations nếu Gemini không có quota Image
+        if not image_result:
+            try:
+                pollinations_prompt = (
+                    f"Full body fashion photography, realistic Vietnamese traditional attire {garment_name}, "
+                    f"color {color_name}, with {headdress_val}, {jewelry_val}, {bottom_val}, {shoes_val}, "
+                    f"historic architecture palace background, cinematic lighting, 8k resolution, photorealistic"
+                )
+                encoded = urllib.parse.quote(pollinations_prompt)
+                seed = random.randint(100000, 999999)
+                p_url = f"https://image.pollinations.ai/prompt/{encoded}?width=768&height=1024&nologo=true&seed={seed}"
+
+                req_p = urllib.request.Request(p_url, headers={"User-Agent": "VietPhucRemix/1.0"})
+                with urllib.request.urlopen(req_p, timeout=20) as p_res:
+                    p_bytes = p_res.read()
+                    image_result = f"data:image/jpeg;base64,{base64.b64encode(p_bytes).decode('utf-8')}"
+                    used_model = "pollinations-remix"
+            except Exception as p_err:
+                print(f"[Pollinations Fallback Error]: {p_err}")
+
+        if not image_result:
+            if not effective_api_key:
+                return {
+                    "success": False,
+                    "needApiKey": True,
+                    "message": "Chưa có khóa Gemini API. Hãy nhập khóa tại mục Cài Đặt trên trang web."
+                }
+            return {
+                "success": False,
+                "code": "GEMINI_IMAGE_QUOTA_EXHAUSTED",
+                "message": "Không thể tạo ảnh do giới hạn quota Google API. Vui lòng thử lại sau giây lát."
+            }
+
+        return {
+            "success": True,
+            "generated_image": image_result,
+            "generated_model": used_model or "gemini-ai"
+        }
+
+    except Exception as e:
+        print(f"[Generate Outfit Preview Error]: {e}")
+        return {
+            "success": False,
+            "message": f"Lỗi tạo ảnh phối đồ: {str(e)}"
         }
 
 # Include routers
