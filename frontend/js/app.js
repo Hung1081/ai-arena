@@ -498,11 +498,15 @@ async function generateAIOutfitPreview(force = false) {
 
         let previewSrc = "";
         if (typeof generatedImg === "string" && generatedImg.startsWith("data:")) {
+            // base64 data URL: convert to blob URL để giảm memory footprint
             const objectUrl = URL.createObjectURL(dataUrlToBlob(generatedImg));
             aiPreviewObjectUrl = objectUrl;
             previewSrc = objectUrl;
         } else if (generatedImg) {
-            previewSrc = generatedImg;
+            // URL từ Pollinations hoặc URL ngoài: thêm timestamp chống cache
+            // Mỗi lần generate phải là request mới — tránh browser dùng cached response
+            const sep = generatedImg.includes("?") ? "&" : "?";
+            previewSrc = `${generatedImg}${sep}_t=${Date.now()}`;
         }
 
         if (image && previewSrc) image.src = previewSrc;

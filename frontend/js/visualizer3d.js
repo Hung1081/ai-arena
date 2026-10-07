@@ -625,6 +625,8 @@ export class TraditionalVisualizer3D {
                     this.realisticBodyMesh = human;
                     this.realisticBodyBaseScale = baseScale;
                     this.updateRealisticBodyShape();
+                    // Sau khi model load xong, auto-fit camera dùng Box3
+                    this.fitCameraToModel();
                     this.render();
                 },
                 undefined,
@@ -636,6 +638,57 @@ export class TraditionalVisualizer3D {
         };
 
         tryLoad(0);
+    }
+
+    /**
+     * Tự động đặt camera và controls.target để khung hình ôm trọn toàn bộ model.
+     * Sử dụng THREE.Box3 để đo kích thước thực tế sau khi model đã được scale và định vị.
+     * Được gọi sau khi model 3D load xong hoặc khi resize container lần đầu tiên.
+     *
+     * @param {number} padding - Hệ số kâu cách (mặc định 1.18 = thêm 18% khoảng trống viền).
+     */
+    fitCameraToModel(padding = 1.18) {
+        // Thu thập tất cả đối tượng trong scene (modelRoot + các group con)
+        const box = new THREE.Box3().setFromObject(this.modelRoot);
+
+        // Nếu box rỗng (model chưa load), dùng box mặc định cho mannequin tham số
+        if (box.isEmpty()) {
+            box.set(
+                new THREE.Vector3(-0.35, 0, -0.35),
+                new THREE.Vector3(0.35, 3.35, 0.35)
+            );
+        }
+
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+
+        // Đặt controls.target vào đúnggim giữa chiều cao model (không phải giữa scene)
+        const targetY = box.min.y + size.y * 0.52;  // 52% từ dưới lên → vùng ngực/ấo (thẩm mỹ hơn bụng)
+        this.controls.target.set(center.x, targetY, center.z);
+
+        // Tính khoảng cách camera để thấy toàn bộ chiều cao model trong khung hình
+        const aspect = this.camera.aspect || 1;
+        const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
+
+        // halfHeight = chiều cao cần cover / 2 (thêm padding)
+        const halfHeight = (size.y / 2) * padding;
+
+        // halfWidth tính tương tự nhắm cover chiều ngang nếu aspect <1 (mobile portrait)
+        const halfWidth = (size.x / 2) * padding;
+
+        // Dùng max của 2 giá trị để đảm bảo cả hai chiều đều vừa trong khung hình
+        const distFromHeight = halfHeight / Math.tan(fovRad / 2);
+        const distFromWidth  = halfWidth  / Math.tan((fovRad * aspect) / 2);
+        const distance = Math.max(distFromHeight, distFromWidth);
+
+        // Đặt camera thẳng trước mặt model, ở độ cao tâm controls.target
+        this.camera.position.set(center.x, targetY, center.z + distance);
+
+        // Cập nhật giới hạn zoom: min=1/4 khoảng cách (zoom vào gần), max=2× (zoom ra xa)
+        this.controls.minDistance = Math.max(0.8, distance * 0.28);
+        this.controls.maxDistance = distance * 2.2;
+        this.controls.update();
+        this.render();
     }
 
     updateRealisticBodyShape() {
