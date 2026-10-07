@@ -46,7 +46,7 @@ export class TraditionalVisualizer3D {
         this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
         // Camera ở -Z nhìn vào mặt trước model (model mặt hướng -Z)
         // Sẽ được đặt lại chính xác bằng fitCameraToModel() sau khi GLB load
-        this.camera.position.set(0, 1.7, -6.5);
+        this.camera.position.set(0, 1.7, -9.5);
         this.camera.lookAt(0, 1.7, 0);  // nhìn vào tâm model
 
         this.renderer = new THREE.WebGLRenderer({
@@ -675,7 +675,7 @@ export class TraditionalVisualizer3D {
         // Tính distance để thấy toàn bộ chiều cao model + 30% viền bảo vệ
         // Dùng vertical FOV vì chiều cao là dimension quan trọng nhất
         const fovRad = this.camera.fov * (Math.PI / 180);
-        const halfH  = (modelH / 2) * 1.3; // +30% viền
+        const halfH  = (modelH / 2) * 2.5; // +150% viền — đủ thấy toàn thân kể cả phụ kiện
         let cameraDist = halfH / Math.tan(fovRad / 2);
 
         // Nếu container portrait (contH > contW), camera cần lùi thêm
