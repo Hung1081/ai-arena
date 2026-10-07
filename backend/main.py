@@ -595,9 +595,16 @@ app.include_router(image_router)
 
 # Serve Frontend static assets
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+NODE_MODULES_THREE = CURRENT_DIR / "node_modules" / "three"
+
+if NODE_MODULES_THREE.exists():
+    app.mount("/vendor/three", StaticFiles(directory=str(NODE_MODULES_THREE)), name="vendor_three")
 
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+
+    if (FRONTEND_DIR / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
 
     @app.get("/")
     def serve_index():
@@ -606,6 +613,10 @@ if FRONTEND_DIR.exists():
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
         return response
+
+    @app.get("/index.html")
+    def serve_index_html():
+        return serve_index()
 
 if __name__ == "__main__":
     import uvicorn

@@ -15,8 +15,11 @@ const MANNEQUIN_IVORY = 0xe9dfcf;
 const GOLD = 0xd4af37;
 
 export class TraditionalVisualizer3D {
-    constructor(containerId) {
-        this.container = document.getElementById(containerId);
+    constructor(containerId = "avatar-stage-3d") {
+        this.container = (typeof containerId === "string" ? document.getElementById(containerId) : containerId)
+            || document.getElementById("avatar-stage-3d")
+            || document.getElementById("avatar-stage")
+            || document.querySelector(".visualizer-wrapper");
         if (!this.container) throw new Error(`Không tìm thấy vùng 3D: ${containerId}`);
 
         this.measurements = { ...DEFAULT_MEASUREMENTS };
@@ -529,78 +532,94 @@ export class TraditionalVisualizer3D {
         // CC0 adult human base mesh by Quaternius / UMRAM Bilkent:
         // https://github.com/UMRAM-Bilkent/supine-human-model
         const loader = new GLTFLoader();
-        loader.load(
+        const candidateUrls = [
             "/static/assets/models/human_posed.glb",
-            (gltf) => {
-                const human = gltf.scene;
-                const mannequinMaterial = this.material(MANNEQUIN_IVORY, { roughness: 0.72, metalness: 0.01, side: THREE.DoubleSide });
-                mannequinMaterial.flatShading = false;
-                mannequinMaterial.depthTest = true;
-                mannequinMaterial.depthWrite = true;
-                mannequinMaterial.polygonOffset = true;
-                mannequinMaterial.polygonOffsetFactor = 1;
-                mannequinMaterial.polygonOffsetUnits = 2;
-                // The source mesh faced opposite the garment/hair coordinate system.
-                human.rotation.y = -Math.PI / 2;
-                human.traverse((node) => {
-                    if (!node.isMesh) return;
-                    node.material = mannequinMaterial;
-                    node.castShadow = true;
-                    node.receiveShadow = true;
-                    if (node.geometry) {
-                        node.geometry = mergeVertices(node.geometry.clone(), 1e-4);
-                        node.geometry.computeVertexNormals();
-                    }
-                });
+            "/assets/models/human_posed.glb",
+            "./assets/models/human_posed.glb",
+            "assets/models/human_posed.glb"
+        ];
 
-                human.updateMatrixWorld(true);
-                const rawBox = new THREE.Box3().setFromObject(human);
-                const rawSize = rawBox.getSize(new THREE.Vector3());
-                const baseScale = rawSize.y > 0 ? 3.35 / rawSize.y : 0.6;
-                human.scale.setScalar(baseScale);
-                human.updateMatrixWorld(true);
-
-                const scaledBox = new THREE.Box3().setFromObject(human);
-                const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
-                human.position.x -= scaledCenter.x;
-                human.position.y -= scaledBox.min.y;
-                human.position.z -= scaledCenter.z;
-                human.updateMatrixWorld(true);
-
-                const wrapper = new THREE.Group();
-                wrapper.add(human);
-                // Body masking: the full source body supplies proportions only.
-                // Covered skin is not rendered, so it can never poke through clothes.
-                human.visible = false;
-                this.disposeGroup(this.bodyGroup);
-                this.bodyGroup.add(wrapper);
-                const smoothHead = this.mannequinHead(mannequinMaterial);
-                const neck = this.mannequinNeck(mannequinMaterial);
-                const skinDetails = new THREE.Group();
-                skinDetails.add(smoothHead, neck);
-                const extractedHands = this.extractHumanHands(human, mannequinMaterial);
-                if (extractedHands.children.length) {
-                    skinDetails.add(extractedHands);
-                } else {
-                    const shape = this.getShape();
-                    const handX = shape.shoulderR * 0.94 + 0.02;
-                    [-1, 1].forEach((side) => {
-                        skinDetails.add(this.handWithFingers(side, side * handX, 1.39, -0.12, mannequinMaterial, shape.limbR));
+        const tryLoad = (index) => {
+            if (index >= candidateUrls.length) {
+                console.warn("[Studio 3D] Không thể tải mô hình human_posed.glb từ bất kỳ đường dẫn nào; tiếp tục dùng mannequin tham số.");
+                return;
+            }
+            const url = candidateUrls[index];
+            loader.load(
+                url,
+                (gltf) => {
+                    const human = gltf.scene;
+                    const mannequinMaterial = this.material(MANNEQUIN_IVORY, { roughness: 0.72, metalness: 0.01, side: THREE.DoubleSide });
+                    mannequinMaterial.flatShading = false;
+                    mannequinMaterial.depthTest = true;
+                    mannequinMaterial.depthWrite = true;
+                    mannequinMaterial.polygonOffset = true;
+                    mannequinMaterial.polygonOffsetFactor = 1;
+                    mannequinMaterial.polygonOffsetUnits = 2;
+                    // The source mesh faced opposite the garment/hair coordinate system.
+                    human.rotation.y = -Math.PI / 2;
+                    human.traverse((node) => {
+                        if (!node.isMesh) return;
+                        node.material = mannequinMaterial;
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                        if (node.geometry) {
+                            node.geometry = mergeVertices(node.geometry.clone(), 1e-4);
+                            node.geometry.computeVertexNormals();
+                        }
                     });
-                }
-                this.skinDetailGroup = skinDetails;
-                this.bodyGroup.add(skinDetails);
-                this.realisticBody = wrapper;
-                this.realisticBodyMesh = human;
-                this.realisticBodyBaseScale = baseScale;
-                this.updateRealisticBodyShape();
-                this.render();
-            },
-            undefined,
-            (error) => {
-                console.warn("[Studio 3D] Không tải được body GLB; tiếp tục dùng mannequin tham số:", error.message);
-            },
-        );
+
+                    human.updateMatrixWorld(true);
+                    const rawBox = new THREE.Box3().setFromObject(human);
+                    const rawSize = rawBox.getSize(new THREE.Vector3());
+                    const baseScale = rawSize.y > 0 ? 3.35 / rawSize.y : 0.6;
+                    human.scale.setScalar(baseScale);
+                    human.updateMatrixWorld(true);
+
+                    const scaledBox = new THREE.Box3().setFromObject(human);
+                    const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+                    human.position.x -= scaledCenter.x;
+                    human.position.y -= scaledBox.min.y;
+                    human.position.z -= scaledCenter.z;
+                    human.updateMatrixWorld(true);
+
+                    const wrapper = new THREE.Group();
+                    wrapper.add(human);
+                    // Hiển thị mô hình người thật kết hợp trang phục
+                    human.visible = true;
+                    this.disposeGroup(this.bodyGroup);
+                    this.bodyGroup.add(wrapper);
+                    const smoothHead = this.mannequinHead(mannequinMaterial);
+                    const neck = this.mannequinNeck(mannequinMaterial);
+                    const skinDetails = new THREE.Group();
+                    skinDetails.add(smoothHead, neck);
+                    const extractedHands = this.extractHumanHands(human, mannequinMaterial);
+                    if (extractedHands.children.length) {
+                        skinDetails.add(extractedHands);
+                    } else {
+                        const shape = this.getShape();
+                        const handX = shape.shoulderR * 0.94 + 0.02;
+                        [-1, 1].forEach((side) => {
+                            skinDetails.add(this.handWithFingers(side, side * handX, 1.39, -0.12, mannequinMaterial, shape.limbR));
+                        });
+                    }
+                    this.skinDetailGroup = skinDetails;
+                    this.bodyGroup.add(skinDetails);
+                    this.realisticBody = wrapper;
+                    this.realisticBodyMesh = human;
+                    this.realisticBodyBaseScale = baseScale;
+                    this.updateRealisticBodyShape();
+                    this.render();
+                },
+                undefined,
+                (error) => {
+                    console.warn(`[Studio 3D] Không thể tải ${url}:`, error?.message || error);
+                    tryLoad(index + 1);
+                },
+            );
+        };
+
+        tryLoad(0);
     }
 
     updateRealisticBodyShape() {
@@ -1459,12 +1478,15 @@ export class TraditionalVisualizer3D {
     }
 
     resize() {
-        const width = Math.max(this.container.clientWidth, 1);
-        const height = Math.max(this.container.clientHeight, 1);
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height, false);
-        this.render();
+        if (!this.container) return;
+        const width = this.container.clientWidth || this.container.parentElement?.clientWidth || 500;
+        const height = this.container.clientHeight || this.container.parentElement?.clientHeight || 560;
+        if (width > 0 && height > 0) {
+            this.camera.aspect = width / height;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(width, height, false);
+            this.render();
+        }
     }
 
     render() {

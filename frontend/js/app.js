@@ -160,25 +160,38 @@ window.playIntroSplash = playIntroSplash;
 async function initThreeDStudio() {
     const loading = document.getElementById("studio-3d-loading");
     try {
-        const { TraditionalVisualizer3D } = await import("/static/js/visualizer3d.js?v=20261007_ankle_forward_v74");
+        let module;
+        try {
+            module = await import("/static/js/visualizer3d.js?v=20261007_ankle_forward_v74");
+        } catch (e1) {
+            console.warn("[Studio 3D] Thử import /static/js/visualizer3d.js thất bại, thử đường dẫn tương đối ./visualizer3d.js:", e1);
+            module = await import("./visualizer3d.js?v=20261007_ankle_forward_v74");
+        }
+        const { TraditionalVisualizer3D } = module;
         visualizer3D = new TraditionalVisualizer3D("avatar-stage-3d");
+        window.visualizer3D = visualizer3D;
         visualizer3D.updateMeasurements(bodyMeasurements);
         visualizer3D.updateOutfit(studioState);
         if (loading) loading.classList.add("hidden");
         setStudioViewMode("3d");
+        setTimeout(() => {
+            if (visualizer3D) visualizer3D.resize();
+        }, 150);
     } catch (error) {
         console.error("[Studio 3D] Không thể khởi tạo:", error);
         if (loading) {
             loading.innerHTML = `
                 <div class="max-w-xs rounded-2xl border border-red-200 bg-white/95 p-4 text-center shadow-md">
                     <strong class="block text-sm text-red-900">Không thể mở chế độ 3D</strong>
-                    <span class="mt-1 block text-[11px] text-stone-600">Hãy khởi động lại server và tải lại trang; chế độ Ảnh AI vẫn có thể dùng.</span>
+                    <span class="mt-1 block text-[11px] text-stone-600">Hãy kiểm tra kết nối Three.js và tải lại trang; chế độ Ảnh AI vẫn có thể dùng.</span>
                 </div>
             `;
         }
         setStudioViewMode("ai");
     }
 }
+window.initThreeDStudio = initThreeDStudio;
+
 
 function syncStudioVisualizers() {
     if (visualizer3D) visualizer3D.updateOutfit(studioState);
@@ -421,7 +434,7 @@ function toggle3DAutoRotate(enabled) {
     if (visualizer3D) visualizer3D.setAutoRotate(enabled);
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function initApp() {
     // 0. Trigger Royal Intro Transition Plaque
     initIntroSplash();
 
@@ -453,7 +466,14 @@ document.addEventListener("DOMContentLoaded", () => {
     //    bấm nút chọn tệp như trước.
     initPasteImageSupport();
     initDragDropImageSupport();
-});
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initApp);
+} else {
+    initApp();
+}
+
 
 /**
  * Tab Switching Logic
@@ -579,7 +599,13 @@ function executeTabSwitch(tabName) {
     if (tabName === "studio") {
         setTimeout(() => {
             if (studioViewMode === "3d" && visualizer3D) visualizer3D.resize();
-        }, 40);
+        }, 50);
+        setTimeout(() => {
+            if (studioViewMode === "3d" && visualizer3D) visualizer3D.resize();
+        }, 360);
+        setTimeout(() => {
+            if (studioViewMode === "3d" && visualizer3D) visualizer3D.resize();
+        }, 1250);
     }
 
     if (window.lucide) {
