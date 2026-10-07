@@ -664,31 +664,29 @@ export class TraditionalVisualizer3D {
         const size   = box.getSize(new THREE.Vector3());
         const modelH = size.y; // chiều cao thực tế của model (thường ~3.35)
 
-        // Target = tâm model (giữa chiều cao)
-        this.controls.target.copy(center);
+        // Target: căn giữa theo chiều cao model, force X=0 Z=0
+        // (model được build đối xứng quanh trục Y — center.x/z có thể lệch nhẹ do floating point)
+        const targetY = center.y; // giữa chiều cao model
+        this.controls.target.set(0, targetY, 0);
 
         // Cập nhật aspect từ container thực tế TRƯỚC khi tính distance
         const contW = Math.max(this.container.clientWidth  || 300, 120);
         const contH = Math.max(this.container.clientHeight || 400, 120);
         this.camera.aspect = contW / contH;
 
-        // Tính distance để thấy toàn bộ chiều cao model + 30% viền bảo vệ
-        // Dùng vertical FOV vì chiều cao là dimension quan trọng nhất
+        // Tính distance để thấy toàn bộ chiều cao model + 150% viền bảo vệ
         const fovRad = this.camera.fov * (Math.PI / 180);
-        const halfH  = (modelH / 2) * 2.5; // +150% viền — đủ thấy toàn thân kể cả phụ kiện
+        const halfH  = (modelH / 2) * 2.5;
         let cameraDist = halfH / Math.tan(fovRad / 2);
 
-        // Nếu container portrait (contH > contW), camera cần lùi thêm
-        // để chiều ngang cũng đủ thấy model
+        // Portrait: cần lùi thêm để chiều ngang đủ thấy model
         if (contW < contH) {
-            const widthFactor = contH / contW; // ví dụ 400/300 = 1.33
-            cameraDist = Math.max(cameraDist, cameraDist * widthFactor * 0.7);
+            cameraDist = Math.max(cameraDist, cameraDist * (contH / contW) * 0.7);
         }
 
-        // GLB rotation.y = -PI/2 → model mặt hướng -Z
-        // → Camera ở -Z nhìn vào mặt, camera ở +Z nhìn vào lưng
-        // Đặt camera ở -Z (trước mặt model)
-        this.camera.position.set(center.x, center.y, center.z - cameraDist);
+        // Camera ở -Z nhìn vào mặt trước model (model mặt hướng -Z sau rotation -PI/2)
+        // X=0 để model ở đúng giữa canvas theo chiều ngang
+        this.camera.position.set(0, targetY, -cameraDist);
 
         this.camera.near = Math.max(0.01, cameraDist * 0.01);
         this.camera.far  = Math.max(100, cameraDist * 20);
