@@ -951,10 +951,21 @@ def generate_english_image_prompt(
         vibe=vibe
     )
 
-def generate_pollinations_url(prompt: str) -> str:
-    """Tạo link ảnh tự động qua Pollinations.ai API với prompt siêu thực."""
+def generate_pollinations_url(prompt: str, width: int = 768, height: int = 1024, seed: int = None) -> str:
+    """Tạo link ảnh tự động qua Pollinations.ai API với prompt siêu thực.
+    
+    - safe="" để encode toàn bộ ký tự đặc biệt bao gồm dấu phẩy, ngoặc, dấu tiếng Việt.
+    - Thêm width/height để tránh Pollinations trả ảnh nhỏ mặc định.
+    - nologo=true loại bỏ watermark trên ảnh.
+    - seed để tránh cache ảnh cũ khi prompt giống nhau.
+    """
+    import random as _random
+    _seed = seed if seed is not None else _random.randint(1000, 99999)
     encoded_prompt = urllib.parse.quote(prompt, safe="")
-    return f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+    return (
+        f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        f"?width={width}&height={height}&nologo=true&seed={_seed}"
+    )
 
 @app.post("/api/recommend")
 def recommend_outfit(req: RecommendRequest):
@@ -1086,9 +1097,8 @@ async def generate_outfit_and_image(req: OutfitImageRequest):
                 vibe=vibe
             )
 
-        # Generate Pollinations.ai image URL chuẩn siêu thực (URL an toàn, không tham số gây lỗi)
-        encoded_prompt = urllib.parse.quote(image_prompt, safe="")
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        # Tạo URL Pollinations đầy đủ params (width, height, nologo, seed) để tránh lỗi 402
+        image_url = generate_pollinations_url(image_prompt)
 
         ao_val = ai_outfit.get("ao", "Áo Cổ Phục Truyền Thống Việt Nam")
         quan_vay_val = ai_outfit.get("quan_vay", "Quần lụa trắng Bạch Hạc ống rộng")
@@ -1123,7 +1133,7 @@ async def generate_outfit_and_image(req: OutfitImageRequest):
                 "phu_kien": fallback["phu_kien"]
             },
             "message": fallback["loi_khuyen"],
-            "image_url": f"https://image.pollinations.ai/prompt/{encoded_prompt}",
+            "image_url": generate_pollinations_url(fallback["image_prompt"]),
             "english_prompt": fallback["image_prompt"]
         }
 

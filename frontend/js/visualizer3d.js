@@ -41,8 +41,11 @@ export class TraditionalVisualizer3D {
 
         this.scene = new THREE.Scene();
         this.scene.background = null;
-        this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-        this.camera.position.set(0, 1.68, 5.9);
+        // fov=42: góc nhìn đủ rộng để thấy toàn thân trên mọi khùng cạnh màn hình.
+        // Aspect=1 được cập nhật ngay khi resize() gọi lần đầu.
+        this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+        // Y=1.7 = nẽgang tầm mắt người mẫu, trùng với controls.target để camera nhìn thẳng khi khởi động
+        this.camera.position.set(0, 1.7, 5.5);
 
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -1511,12 +1514,22 @@ export class TraditionalVisualizer3D {
         width = Math.max(width, 120);
         height = Math.max(height, 120);
 
-        // updateStyle=false: không ghi đè CSS width/height bằng inline style
-        // (tránh xung đột với .studio-3d-canvas { width: 100% !important })
+        // FOV adaptive: container thấp (mobile) → fov rộng hơn để thấy toàn thân người mẫu
+        // Container cao (để bàn) → fov hẹp hơn (tầm thường)
+        const targetFov = height < 500 ? 54 : height < 700 ? 46 : 42;
+        if (Math.abs(this.camera.fov - targetFov) > 0.5) {
+            this.camera.fov = targetFov;
+        }
+
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height, false);
+
+        // setPixelRatio TRƯỚC setSize: Three.js cần biết pixel ratio để tính
+        // internal buffer = width * pixelRatio. Nếu đảo ngược thì buffer sai → nhòe.
+        // updateStyle=false: không ghi đè CSS width/height bằng inline style
+        // (tránh xung đột với .studio-3d-canvas { width: 100% !important })
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.renderer.setSize(width, height, false);
         this.render();
     }
 
