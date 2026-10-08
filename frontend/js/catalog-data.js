@@ -10,6 +10,8 @@ window.STYLIST_CATALOG = {
         {
             id: "ao_dai",
             name: "Áo Dài Việt Nam",
+            gender: "female", // "female" hoặc "male"
+            baseImage: "assets/outfits/aodai.png", // Đường dẫn ảnh vừa upload 
             dynasty: "Cổ điển & Tân thời (Thế kỷ 18 - Nay)",
             type: "Quốc phục biểu tượng",
             origin: "Toàn quốc",
@@ -32,6 +34,8 @@ window.STYLIST_CATALOG = {
         {
             id: "ngu_than",
             name: "Áo Ngũ Thân (Tay Chẽn & Áo Tấc)",
+            gender: "female", // "female" hoặc "male"
+            baseImage: "assets/outfits/aonguthan.png", // Đường dẫn ảnh vừa upload
             dynasty: "Triều Nguyễn (1802 - 1945)",
             type: "Đại lễ phục & Thường phục chuẩn mực",
             origin: "Định chế thời chúa Nguyễn & vua Minh Mạng",
@@ -54,6 +58,8 @@ window.STYLIST_CATALOG = {
         {
             id: "tu_than",
             name: "Áo Tứ Thân & Yếm Đào",
+            gender: "female", // "female" hoặc "male"
+            baseImage: "assets/outfits/aotuthan.png", // Đường dẫn ảnh vừa upload 
             dynasty: "Dân gian Bắc Bộ (Thời Lê - Nguyễn)",
             type: "Y phục Dân gian & Lễ hội",
             origin: "Đồng bằng sông Hồng (Kinh Bắc)",
@@ -75,6 +81,8 @@ window.STYLIST_CATALOG = {
         {
             id: "nhat_binh",
             name: "Áo Nhật Bình",
+            gender: "female", // "female" hoặc "male'
+            baseImage: "assets/outfits/aonhatbinh.png", // Đường dẫn ảnh vừa upload
             dynasty: "Triều Nguyễn Cung Đình",
             type: "Lễ phục Hoàng tộc & Cô dâu",
             origin: "Kinh đô Huế",
@@ -96,6 +104,8 @@ window.STYLIST_CATALOG = {
         {
             id: "ao_ba_ba",
             name: "Áo Bà Ba & Khăn Rằn",
+            gender: "female", // "female" hoặc "male"
+            baseImage: "assets/outfits/aobaba.png", // Đường dẫn ảnh vừa upload
             dynasty: "Nam Bộ (Thế kỷ 19 - Nay)",
             type: "Y phục Dân gian Nam Bộ",
             origin: "Miền Tây sông nước Nam Bộ",
@@ -118,6 +128,8 @@ window.STYLIST_CATALOG = {
         {
             id: "trang_phuc_dan_toc",
             name: "Trang Phục Dân Tộc Thổ Cẩm",
+            gender: "female", // "female" hoặc "male"
+            baseImage: "assets/outfits/thocamdantoc.png", // Đường dẫn ảnh vừa upload 
             dynasty: "Bản Sắc Vùng Cao (Tây Bắc & Tây Nguyên)",
             type: "Di sản Văn hóa Dân tộc",
             origin: "Vùng núi phía Bắc (H'Mông, Dao, Thái, Tày)",
