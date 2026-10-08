@@ -421,14 +421,14 @@
                         </div>
                         <div id="avatar-stage-ai" class="hidden w-full h-full relative overflow-hidden rounded-[22px] bg-stone-900" aria-live="polite">
                             <img id="studio-ai-preview-image" src="" alt="Ảnh phối đồ do Gemini tạo" class="hidden w-full h-full object-contain">
-                            <button type="button" id="studio-ai-regen-btn" onclick="generateAIOutfitPreview(true)" class="absolute right-3 top-3 z-30 rounded-full border border-amber-300/60 bg-black/60 px-3 py-1.5 text-[11px] font-semibold text-amber-100 backdrop-blur-md hover:bg-black/80 transition">
+                            <button type="button" onclick="generateAIOutfitPreview(true)" class="absolute right-3 top-3 z-30 rounded-full border border-amber-300/60 bg-black/60 px-3 py-1.5 text-[11px] font-semibold text-amber-100 backdrop-blur-md hover:bg-black/80 transition">
                                 Tạo lại ảnh
                             </button>
                             <div id="studio-ai-preview-empty" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-stone-900 to-red-950 p-8 text-center text-amber-100">
                                 <i data-lucide="image-plus" class="w-12 h-12 text-amber-300 stroke-1"></i>
                                 <strong class="font-imperial text-lg">Ảnh Phối Đồ Gemini</strong>
                                 <p class="max-w-xs text-xs leading-relaxed text-stone-300">Đổi màu áo hoặc phụ kiện; ảnh cũ sẽ bị xoá và Gemini tạo một biến thể mới từ ảnh mẫu hiện tại.</p>
-                                <button type="button" id="studio-ai-create-btn" onclick="generateAIOutfitPreview(true)" class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-stone-900 hover:bg-amber-400 transition">Tạo ảnh từ cấu hình này</button>
+                                <button type="button" onclick="generateAIOutfitPreview(true)" class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-stone-900 hover:bg-amber-400 transition">Tạo ảnh từ cấu hình này</button>
                             </div>
                             <div id="studio-ai-preview-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-3 bg-stone-950/90 text-amber-100">
                                 <div class="w-9 h-9 rounded-full border-4 border-amber-400 border-t-transparent animate-spin"></div>
@@ -441,7 +441,7 @@
                                 <span id="studio-ai-preview-error-text" class="max-w-xs text-[11px] leading-relaxed text-stone-300"></span>
                                 <div class="flex gap-2">
                                     <button type="button" onclick="openSettingsModal()" class="rounded-xl border border-amber-400 px-3 py-2 text-[11px] font-semibold text-amber-200 hover:bg-amber-900/60">Mở Cài Đặt</button>
-                                    <button type="button" id="studio-ai-retry-btn" onclick="generateAIOutfitPreview(true)" class="rounded-xl bg-amber-500 px-3 py-2 text-[11px] font-bold text-stone-900 hover:bg-amber-400">Thử lại</button>
+                                    <button type="button" onclick="generateAIOutfitPreview(true)" class="rounded-xl bg-amber-500 px-3 py-2 text-[11px] font-bold text-stone-900 hover:bg-amber-400">Thử lại</button>
                                 </div>
                             </div>
                             <div id="studio-ai-preview-caption" class="hidden absolute bottom-3 left-3 right-3 rounded-xl bg-black/65 px-3 py-2 text-[11px] text-amber-100 backdrop-blur-sm"></div>
@@ -760,7 +760,7 @@
                         </div>
                     </div>
 
-                    <button type="submit" id="generator-submit-btn" class="w-full py-3.5 px-6 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-bold text-sm tracking-wide shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2">
+                    <button type="submit" class="w-full py-3.5 px-6 rounded-2xl bg-red-800 hover:bg-red-900 text-amber-100 font-bold text-sm tracking-wide shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2">
                         <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
                         <span>Tạo Phối Đồ Trọn Bộ (Áo + Quần + Giày + Túi + Khăn)</span>
                     </button>
@@ -1048,12 +1048,12 @@
         </div>
     </div>
 
-    <!-- Three.js CDN unpkg mapping -->
+    <!-- Three.js is served locally by backend/server.js; no external CDN is required. -->
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three": "/vendor/three/build/three.module.js",
+                "three/addons/": "/vendor/three/examples/jsm/"
             }
         }
     </script>

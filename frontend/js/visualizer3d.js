@@ -1,7 +1,7 @@
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+import { mergeVertices } from "https://unpkg.com/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js";
 
 const DEFAULT_MEASUREMENTS = Object.freeze({
     height: 168,
@@ -15,8 +15,11 @@ const MANNEQUIN_IVORY = 0xe9dfcf;
 const GOLD = 0xd4af37;
 
 export class TraditionalVisualizer3D {
-    constructor(containerId) {
-        this.container = document.getElementById(containerId);
+    constructor(containerId = "avatar-stage-3d") {
+        this.container = (typeof containerId === "string" ? document.getElementById(containerId) : containerId)
+            || document.getElementById("avatar-stage-3d")
+            || document.getElementById("avatar-stage")
+            || document.querySelector(".visualizer-wrapper");
         if (!this.container) throw new Error(`Không tìm thấy vùng 3D: ${containerId}`);
 
         this.measurements = { ...DEFAULT_MEASUREMENTS };
@@ -38,8 +41,12 @@ export class TraditionalVisualizer3D {
 
         this.scene = new THREE.Scene();
         this.scene.background = null;
-        this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-        this.camera.position.set(0, 1.68, 5.9);
+        // fov=50: góc nhìn rộng hơn để thấy toàn thân trên mọi kích cỡ canvas.
+        // GLB rotation.y = -PI/2 → model mặt hướng -Z → camera phải ở -Z.
+        this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+        // Vị trí tạm — sẽ được đặt chính xác bằng fitCameraToModel() sau khi GLB load
+        // Camera ở -Z vì model mặt hướng -Z (GLB rotation.y = -PI/2)
+        this.camera.position.set(0, 1.7, -7.0);
 
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -60,8 +67,8 @@ export class TraditionalVisualizer3D {
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.075;
         this.controls.enablePan = false;
-        this.controls.minDistance = 2.8;
-        this.controls.maxDistance = 7.2;
+        this.controls.minDistance = 1.5;
+        this.controls.maxDistance = 20;
         this.controls.minPolarAngle = 0.12;
         // Không cho camera chui xuống dưới gấu áo như nhìn từ dưới sàn;
         // vẫn đủ góc thấp để xem quần, chân và giày.
@@ -79,9 +86,22 @@ export class TraditionalVisualizer3D {
         this.buildGarment();
         this.buildAccessories();
         this.loadRealisticBody();
-        this.resizeObserver = new ResizeObserver(() => this.resize());
-        this.resizeObserver.observe(this.container);
-        this.resize();
+        // Debounce resize để tránh gọi liên tiếp khi kéo cửa sổ hoặc tab switch
+        this._resizeTimer = null;
+        this.handleResize = () => {
+            if (this._resizeTimer) return;
+            this._resizeTimer = requestAnimationFrame(() => {
+                this._resizeTimer = null;
+                this.resize();
+            });
+        };
+        window.addEventListener("resize", this.handleResize);
+        if (window.ResizeObserver) {
+            this.resizeObserver = new ResizeObserver(() => this.handleResize());
+            this.resizeObserver.observe(this.container);
+        }
+        // Resize sau khi DOM ổn định (tránh container chưa có kích thước)
+        requestAnimationFrame(() => { this.resize(); });
         this.animate = this.animate.bind(this);
         this.animationFrame = requestAnimationFrame(this.animate);
     }
@@ -529,78 +549,156 @@ export class TraditionalVisualizer3D {
         // CC0 adult human base mesh by Quaternius / UMRAM Bilkent:
         // https://github.com/UMRAM-Bilkent/supine-human-model
         const loader = new GLTFLoader();
-        loader.load(
+        const candidateUrls = [
             "/static/assets/models/human_posed.glb",
-            (gltf) => {
-                const human = gltf.scene;
-                const mannequinMaterial = this.material(MANNEQUIN_IVORY, { roughness: 0.72, metalness: 0.01, side: THREE.DoubleSide });
-                mannequinMaterial.flatShading = false;
-                mannequinMaterial.depthTest = true;
-                mannequinMaterial.depthWrite = true;
-                mannequinMaterial.polygonOffset = true;
-                mannequinMaterial.polygonOffsetFactor = 1;
-                mannequinMaterial.polygonOffsetUnits = 2;
-                // The source mesh faced opposite the garment/hair coordinate system.
-                human.rotation.y = -Math.PI / 2;
-                human.traverse((node) => {
-                    if (!node.isMesh) return;
-                    node.material = mannequinMaterial;
-                    node.castShadow = true;
-                    node.receiveShadow = true;
-                    if (node.geometry) {
-                        node.geometry = mergeVertices(node.geometry.clone(), 1e-4);
-                        node.geometry.computeVertexNormals();
-                    }
-                });
+            "/assets/models/human_posed.glb",
+            "./assets/models/human_posed.glb",
+            "assets/models/human_posed.glb"
+        ];
 
-                human.updateMatrixWorld(true);
-                const rawBox = new THREE.Box3().setFromObject(human);
-                const rawSize = rawBox.getSize(new THREE.Vector3());
-                const baseScale = rawSize.y > 0 ? 3.35 / rawSize.y : 0.6;
-                human.scale.setScalar(baseScale);
-                human.updateMatrixWorld(true);
-
-                const scaledBox = new THREE.Box3().setFromObject(human);
-                const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
-                human.position.x -= scaledCenter.x;
-                human.position.y -= scaledBox.min.y;
-                human.position.z -= scaledCenter.z;
-                human.updateMatrixWorld(true);
-
-                const wrapper = new THREE.Group();
-                wrapper.add(human);
-                // Body masking: the full source body supplies proportions only.
-                // Covered skin is not rendered, so it can never poke through clothes.
-                human.visible = false;
-                this.disposeGroup(this.bodyGroup);
-                this.bodyGroup.add(wrapper);
-                const smoothHead = this.mannequinHead(mannequinMaterial);
-                const neck = this.mannequinNeck(mannequinMaterial);
-                const skinDetails = new THREE.Group();
-                skinDetails.add(smoothHead, neck);
-                const extractedHands = this.extractHumanHands(human, mannequinMaterial);
-                if (extractedHands.children.length) {
-                    skinDetails.add(extractedHands);
-                } else {
-                    const shape = this.getShape();
-                    const handX = shape.shoulderR * 0.94 + 0.02;
-                    [-1, 1].forEach((side) => {
-                        skinDetails.add(this.handWithFingers(side, side * handX, 1.39, -0.12, mannequinMaterial, shape.limbR));
+        const tryLoad = (index) => {
+            if (index >= candidateUrls.length) {
+                console.warn("[Studio 3D] Không thể tải mô hình human_posed.glb từ bất kỳ đường dẫn nào; tiếp tục dùng mannequin tham số.");
+                return;
+            }
+            const url = candidateUrls[index];
+            loader.load(
+                url,
+                (gltf) => {
+                    const human = gltf.scene;
+                    const mannequinMaterial = this.material(MANNEQUIN_IVORY, { roughness: 0.72, metalness: 0.01, side: THREE.DoubleSide });
+                    mannequinMaterial.flatShading = false;
+                    mannequinMaterial.depthTest = true;
+                    mannequinMaterial.depthWrite = true;
+                    mannequinMaterial.polygonOffset = true;
+                    mannequinMaterial.polygonOffsetFactor = 1;
+                    mannequinMaterial.polygonOffsetUnits = 2;
+                    // The source mesh faced opposite the garment/hair coordinate system.
+                    human.rotation.y = -Math.PI / 2;
+                    human.traverse((node) => {
+                        if (!node.isMesh) return;
+                        node.material = mannequinMaterial;
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                        if (node.geometry) {
+                            node.geometry = mergeVertices(node.geometry.clone(), 1e-4);
+                            node.geometry.computeVertexNormals();
+                        }
                     });
-                }
-                this.skinDetailGroup = skinDetails;
-                this.bodyGroup.add(skinDetails);
-                this.realisticBody = wrapper;
-                this.realisticBodyMesh = human;
-                this.realisticBodyBaseScale = baseScale;
-                this.updateRealisticBodyShape();
-                this.render();
-            },
-            undefined,
-            (error) => {
-                console.warn("[Studio 3D] Không tải được body GLB; tiếp tục dùng mannequin tham số:", error.message);
-            },
+
+                    human.updateMatrixWorld(true);
+                    const rawBox = new THREE.Box3().setFromObject(human);
+                    const rawSize = rawBox.getSize(new THREE.Vector3());
+                    const baseScale = rawSize.y > 0 ? 3.35 / rawSize.y : 0.6;
+                    human.scale.setScalar(baseScale);
+                    human.updateMatrixWorld(true);
+
+                    const scaledBox = new THREE.Box3().setFromObject(human);
+                    const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+                    human.position.x -= scaledCenter.x;
+                    human.position.y -= scaledBox.min.y;
+                    human.position.z -= scaledCenter.z;
+                    human.updateMatrixWorld(true);
+
+                    const wrapper = new THREE.Group();
+                    wrapper.add(human);
+                    // Hiển thị mô hình người thật kết hợp trang phục
+                    human.visible = true;
+                    this.disposeGroup(this.bodyGroup);
+                    this.bodyGroup.add(wrapper);
+                    const smoothHead = this.mannequinHead(mannequinMaterial);
+                    const neck = this.mannequinNeck(mannequinMaterial);
+                    const skinDetails = new THREE.Group();
+                    skinDetails.add(smoothHead, neck);
+                    const extractedHands = this.extractHumanHands(human, mannequinMaterial);
+                    if (extractedHands.children.length) {
+                        skinDetails.add(extractedHands);
+                    } else {
+                        const shape = this.getShape();
+                        const handX = shape.shoulderR * 0.94 + 0.02;
+                        [-1, 1].forEach((side) => {
+                            skinDetails.add(this.handWithFingers(side, side * handX, 1.39, -0.12, mannequinMaterial, shape.limbR));
+                        });
+                    }
+                    this.skinDetailGroup = skinDetails;
+                    this.bodyGroup.add(skinDetails);
+                    this.realisticBody = wrapper;
+                    this.realisticBodyMesh = human;
+                    this.realisticBodyBaseScale = baseScale;
+                    this.updateRealisticBodyShape();
+                    // Sau khi model load xong, auto-fit camera dùng Box3
+                    this.fitCameraToModel();
+                    this.render();
+                },
+                undefined,
+                (error) => {
+                    console.warn(`[Studio 3D] Không thể tải ${url}:`, error?.message || error);
+                    tryLoad(index + 1);
+                },
+            );
+        };
+
+        tryLoad(0);
+    }
+
+    /**
+     * Căn chỉnh camera để mô hình 3D hiển thị trọn vẹn, cân đối, chính giữa canvas.
+     *
+     * Pattern chuẩn OrbitControls:
+     *   1. Đo bounding box thực tế (updateMatrixWorld trước)
+     *   2. controls.target.copy(center) — tâm xoay đúng giữa model
+     *   3. camera.position offset theo -Z (model mặt hướng -Z sau rotation.y=-PI/2)
+     *   4. controls.update() — OrbitControls tự set orientation, KHÔNG gọi lookAt()
+     *
+     * KHÔNG gọi camera.lookAt() khi dùng OrbitControls — OrbitControls override
+     * camera orientation tại controls.update(), lookAt() gây xung đột state.
+     */
+    fitCameraToModel(model = this.modelRoot) {
+        // 1. Cập nhật toàn bộ ma trận world (bắt buộc trước Box3)
+        model.updateMatrixWorld(true);
+
+        // 2. Bounding box thực tế: body + garment + accessories
+        const box = new THREE.Box3().setFromObject(model);
+        if (box.isEmpty()) {
+            box.set(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 3.35, 0.5));
+        }
+        const center = box.getCenter(new THREE.Vector3());
+        const size   = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+
+        // 3. Tâm xoay OrbitControls = tâm hình học thực tế của model
+        this.controls.target.copy(center);
+
+        // 4. Khoảng cách camera: maxDim * 2.0 đủ thấy toàn thân với viền thoải mái
+        //    Không dùng formula FOV phức tạp — maxDim*2 là heuristic chuẩn cho humanoid
+        const cameraDist = maxDim * 2.0;
+
+        // 5. Camera lùi ra theo -Z (trước mặt model, model mặt hướng -Z)
+        //    offset từ center để model luôn ở giữa camera view
+        this.camera.position.set(
+            center.x,
+            center.y,
+            center.z - cameraDist
         );
+
+        // 6. Cập nhật aspect ratio từ container thực tế (không dùng window.innerWidth)
+        const contW = Math.max(this.container.clientWidth  || 300, 120);
+        const contH = Math.max(this.container.clientHeight || 400, 120);
+        this.camera.aspect = contW / contH;
+
+        // 7. near/far tỉ lệ theo model — tránh clipping ở mọi khoảng cách zoom
+        this.camera.near = maxDim / 100;
+        this.camera.far  = maxDim * 100;
+        this.camera.updateProjectionMatrix();
+
+        // 8. Giới hạn zoom hợp lý
+        this.controls.minDistance = maxDim * 0.5;
+        this.controls.maxDistance = maxDim * 8.0;
+
+        // 9. controls.update() — OrbitControls tự xử lý camera orientation
+        //    KHÔNG gọi camera.lookAt() — sẽ gây xung đột với OrbitControls
+        this.controls.update();
+        this.render();
     }
 
     updateRealisticBodyShape() {
@@ -1459,10 +1557,33 @@ export class TraditionalVisualizer3D {
     }
 
     resize() {
-        const width = Math.max(this.container.clientWidth, 1);
-        const height = Math.max(this.container.clientHeight, 1);
+        if (!this.container) return;
+
+        // Lấy kích thước thực tế từ div container (không dùng window.innerWidth/innerHeight)
+        let width  = this.container.clientWidth;
+        let height = this.container.clientHeight;
+
+        // Fallback: leo lên cây DOM để tìm kích thước (khi tab bị ẩn, container = 0)
+        if (width <= 0 || height <= 0) {
+            let el = this.container.parentElement;
+            while (el && (width <= 0 || height <= 0)) {
+                width  = width  <= 0 ? el.clientWidth  : width;
+                height = height <= 0 ? el.clientHeight : height;
+                el = el.parentElement;
+            }
+        }
+
+        // Kích thước tối thiểu để tránh canvas = 0 gây lỗi WebGL
+        width  = Math.max(width,  120);
+        height = Math.max(height, 120);
+
+        // Cập nhật camera.aspect theo tỷ lệ container thực tế
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
+
+        // setPixelRatio TRƯỚC setSize để Three.js tính đúng internal buffer = width * pixelRatio
+        // updateStyle=false: không ghi đè CSS (tránh xung đột với width:100% !important)
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         this.renderer.setSize(width, height, false);
         this.render();
     }
@@ -1484,7 +1605,12 @@ export class TraditionalVisualizer3D {
 
     destroy() {
         cancelAnimationFrame(this.animationFrame);
-        this.resizeObserver.disconnect();
+        if (this.handleResize) {
+            window.removeEventListener("resize", this.handleResize);
+        }
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+        }
         this.controls.dispose();
         this.disposeGroup(this.bodyGroup);
         this.disposeGroup(this.garmentGroup);
