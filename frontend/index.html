@@ -1048,12 +1048,12 @@
         </div>
     </div>
 
-    <!-- Three.js is served locally by backend/server.js; no external CDN is required. -->
+    <!-- Three.js is bundled with the frontend so both Node and FastAPI deployments can load 3D. -->
     <script type="importmap">
         {
             "imports": {
-                "three": "/vendor/three/build/three.module.js",
-                "three/addons/": "/vendor/three/examples/jsm/"
+                "three": "/static/assets/vendor/three/build/three.module.js",
+                "three/addons/": "/static/assets/vendor/three/examples/jsm/"
             }
         }
     </script>
