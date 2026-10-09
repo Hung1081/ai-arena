@@ -1048,12 +1048,12 @@
         </div>
     </div>
 
-    <!-- Three.js CDN unpkg mapping -->
+    <!-- Three.js is bundled with the frontend so both Node and FastAPI deployments can load 3D. -->
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three": "/static/assets/vendor/three/build/three.module.js",
+                "three/addons/": "/static/assets/vendor/three/examples/jsm/"
             }
         }
     </script>

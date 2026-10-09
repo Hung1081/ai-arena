@@ -208,10 +208,10 @@ async function initThreeDStudio() {
     try {
         let module;
         try {
-            module = await import("/static/js/visualizer3d.js?v=20261007_ankle_forward_v74");
+            module = await import("/static/js/visualizer3d.js?v=20261008_model_sync_v75");
         } catch (e1) {
             console.warn("[Studio 3D] Thử import /static/js/visualizer3d.js thất bại, thử đường dẫn tương đối ./visualizer3d.js:", e1);
-            module = await import("./visualizer3d.js?v=20261007_ankle_forward_v74");
+            module = await import("./visualizer3d.js?v=20261008_model_sync_v75");
         }
         const { TraditionalVisualizer3D } = module;
         visualizer3D = new TraditionalVisualizer3D("avatar-stage-3d");
