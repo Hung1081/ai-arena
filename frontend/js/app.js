@@ -2143,7 +2143,7 @@ async function launchVirtualTryOnModal(garmentId, userImgBase64) {
     if (garmentSelect) garmentSelect.value = garmentId;
 
     const catalogGarment = (window.STYLIST_CATALOG && window.STYLIST_CATALOG.garments.find(g => g.id === garmentId)) || {};
-    const outfitPhoto = catalogGarment.photo || "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=800&q=80";
+    const outfitPhoto = catalogGarment.photo || "assets/outfits/aodai.png";
     const garmentName = catalogGarment.name || "Cổ Phục Việt Nam";
 
     // View "So Sánh Song Song" — không đổi, vẫn dùng ảnh tư liệu tham khảo
@@ -2156,6 +2156,7 @@ async function launchVirtualTryOnModal(garmentId, userImgBase64) {
     if (titleEl) titleEl.textContent = garmentName;
 
     modal.classList.remove("hidden");
+    blendFaceWithOutfit(userImgBase64, outfitPhoto);
     switchTryOnTab("blend");
     if (window.lucide) window.lucide.createIcons();
 
