@@ -57,3 +57,7 @@ yarn-error.log*
 
 # Logs
 *.log
+
+# Patch and migration archives
+Viet Phuc Remix Patch*/
+*.docx

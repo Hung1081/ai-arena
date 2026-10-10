@@ -90,11 +90,33 @@ def test_static_assets():
     assert "Trang Phục Dân Tộc" in res_index.text
     print("✓ Frontend index.html served with new components")
 
+def test_generate_outfit_image():
+    # Test with standard form inputs
+    test_cases = [
+        {"dip": "Tết (Du xuân, chúc Tết, sum vầy)", "vibe": "Thanh Lịch", "gioi_tinh": "Nữ Giới", "y_phuc": "Áo Dài Việt Nam"},
+        {"dip": "Cưới hỏi", "vibe": "Cổ Điển", "gioi_tinh": "Nữ", "y_phuc": "nhat_binh"},
+        {"dip": "Lễ hội truyền thống", "vibe": "Cổ Điển", "gioi_tinh": "Nữ", "y_phuc": "tu_than"},
+        {"dip": "Hằng ngày", "vibe": "Tối Giản", "gioi_tinh": "Nam Giới", "y_phuc": "ao_ba_ba"}
+    ]
+
+    for tc in test_cases:
+        res = client.post("/api/generate-outfit-image", json=tc)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "success"
+        assert "ao" in data["outfit"]
+        assert "quan_vay" in data["outfit"]
+        assert "phu_kien" in data["outfit"]
+        assert "message" in data and len(data["message"]) > 0
+        assert "image_url" in data and data["image_url"].startswith("https://image.pollinations.ai/prompt/")
+    print("✓ API /api/generate-outfit-image verified across various occasions & garments")
+
 if __name__ == "__main__":
     test_health()
     test_catalog_upgrades()
     test_chat_ao_ba_ba()
     test_chat_ethnic_attire()
     test_recommend_formula_matrix()
+    test_generate_outfit_image()
     test_static_assets()
     print("\nAll upgraded verification tests passed successfully!")

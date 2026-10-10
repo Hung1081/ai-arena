@@ -10,12 +10,10 @@ window.STYLIST_CATALOG = {
         {
             id: "ao_dai",
             name: "Áo Dài Việt Nam",
-            gender: "female", // "female" hoặc "male"
-            baseImage: "assets/outfits/aodai.png", // Đường dẫn ảnh vừa upload 
             dynasty: "Cổ điển & Tân thời (Thế kỷ 18 - Nay)",
             type: "Quốc phục biểu tượng",
             origin: "Toàn quốc",
-            photo: "assets/outfits/aodai.png",
+            photo: "https://commons.wikimedia.org/wiki/Special:FilePath/Temple%20of%20Literature%20-%20Ao%20Dai.jpg",
             photoNguon: "Wikimedia Commons — chụp tại Văn Miếu, Hà Nội",
             description: "Biểu tượng duyên dáng bất hủ của người Việt. Tà áo dài thướt tha chạm bắp chân, eo chít nhẹ nhàng tôn trọn vẻ đẹp kín đáo và mực thước.",
             details: "Phù hợp từ ngày lễ Tết, cưới hỏi, sân trường thanh xuân đến các sự kiện ngoại giao quốc tế.",
@@ -34,12 +32,10 @@ window.STYLIST_CATALOG = {
         {
             id: "ngu_than",
             name: "Áo Ngũ Thân (Tay Chẽn & Áo Tấc)",
-            gender: "female", // "female" hoặc "male"
-            baseImage: "assets/outfits/aonguthan.png", // Đường dẫn ảnh vừa upload
             dynasty: "Triều Nguyễn (1802 - 1945)",
             type: "Đại lễ phục & Thường phục chuẩn mực",
             origin: "Định chế thời chúa Nguyễn & vua Minh Mạng",
-            photo: "assets/outfits/aonguthan.png",
+            photo: "https://commons.wikimedia.org/wiki/Special:FilePath/Portrait%20of%20Mandarin%20Vi%20V%C4%83n%20%C4%90%E1%BB%8Bnh.jpg",
             photoNguon: "Wikimedia Commons — Vi Văn Định mặc áo ngũ thân, ảnh trước 1945, phạm vi công cộng",
             description: "Y phục chuẩn mực 5 thân 5 cúc tượng trưng cho Tứ thân phụ mẫu và đạo lý Ngũ Thường (Nhân, Lễ, Nghĩa, Trí, Tín). Dáng áo suông che khuyết điểm hoàn hảo.",
             details: "Gồm hai nhánh: Áo Tấc tay thụng dùng trong đại lễ, và Áo Ngũ Thân tay chẽn gọn gàng lịch lãm cho thường nhật.",
@@ -58,12 +54,10 @@ window.STYLIST_CATALOG = {
         {
             id: "tu_than",
             name: "Áo Tứ Thân & Yếm Đào",
-            gender: "female", // "female" hoặc "male"
-            baseImage: "assets/outfits/aotuthan.png", // Đường dẫn ảnh vừa upload 
             dynasty: "Dân gian Bắc Bộ (Thời Lê - Nguyễn)",
             type: "Y phục Dân gian & Lễ hội",
             origin: "Đồng bằng sông Hồng (Kinh Bắc)",
-            photo: "assets/outfits/aotuthan.png",
+            photo: "https://commons.wikimedia.org/wiki/Special:FilePath/%C3%81o%20t%E1%BB%A9%20th%C3%A2n%201.jpg",
             photoNguon: "Wikimedia Commons",
             description: "Nét mộc mạc, tha thướt của người phụ nữ Bắc Bộ. Bốn vạt áo buông lơi, hai vạt trước thắt nút eo để lộ mép yếm đào thắm và dải thắt lưng xanh lụa đào.",
             details: "Gắn liền với hội Lim, câu quan họ và chiếc nón quai thao che nghiêng vành duyên.",
@@ -81,12 +75,10 @@ window.STYLIST_CATALOG = {
         {
             id: "nhat_binh",
             name: "Áo Nhật Bình",
-            gender: "female", // "female" hoặc "male'
-            baseImage: "assets/outfits/aonhatbinh.png", // Đường dẫn ảnh vừa upload
             dynasty: "Triều Nguyễn Cung Đình",
             type: "Lễ phục Hoàng tộc & Cô dâu",
             origin: "Kinh đô Huế",
-            photo: "assets/outfits/aonhatbinh.png",
+            photo: "https://commons.wikimedia.org/wiki/Special:FilePath/Vietnamese%20woman%20wearing%20%C3%81o%20Nh%E1%BA%ADt%20B%C3%ACnh.jpg",
             photoNguon: "Wikimedia Commons — bà Vi Kim Ngọc mặc áo Nhật Bình (1936), CC BY-SA 4.0",
             description: "Thường phục tôn quý của Hoàng hậu, Công chúa và mệnh phụ quý tộc. Cổ áo hình chữ nhật viền thêu rồng phượng và dải ngũ sắc ngũ hành rực rỡ ở tay áo.",
             details: "Trang phục hàng đầu cho cô dâu trong lễ vu quy và các bộ ảnh cổ phong hoàng cung.",
@@ -104,12 +96,10 @@ window.STYLIST_CATALOG = {
         {
             id: "ao_ba_ba",
             name: "Áo Bà Ba & Khăn Rằn",
-            gender: "female", // "female" hoặc "male"
-            baseImage: "assets/outfits/aobaba.png", // Đường dẫn ảnh vừa upload
             dynasty: "Nam Bộ (Thế kỷ 19 - Nay)",
             type: "Y phục Dân gian Nam Bộ",
             origin: "Miền Tây sông nước Nam Bộ",
-            photo: "assets/outfits/aobaba.png",
+            photo: "https://commons.wikimedia.org/wiki/Special:FilePath/Peasant%20in%20%C3%A1o%20b%C3%A0%20ba.jpg",
             photoNguon: "Wikimedia Commons",
             description: "Biểu tượng giản dị, phóng khoáng của người con phương Nam. Thân áo ngắn xẻ tà hai bên hông, hai túi vuông phía trước, phối quần lụa đen và khăn rằn vắt vai.",
             details: "Mang lại cảm giác dễ chịu, gần gũi và cực kỳ duyên dáng khi chèo đò hay dạo cảnh sông nước.",
@@ -128,12 +118,10 @@ window.STYLIST_CATALOG = {
         {
             id: "trang_phuc_dan_toc",
             name: "Trang Phục Dân Tộc Thổ Cẩm",
-            gender: "female", // "female" hoặc "male"
-            baseImage: "assets/outfits/thocamdantoc.png", // Đường dẫn ảnh vừa upload 
             dynasty: "Bản Sắc Vùng Cao (Tây Bắc & Tây Nguyên)",
             type: "Di sản Văn hóa Dân tộc",
             origin: "Vùng núi phía Bắc (H'Mông, Dao, Thái, Tày)",
-            photo: "assets/outfits/thocamdantoc.png",
+            photo: "https://commons.wikimedia.org/wiki/Special:FilePath/Flower%20Hmongs%20on%20market%2C%20Vietnam.jpg",
             photoNguon: "Wikimedia Commons — chợ phiên vùng cao, người H'Mông",
             description: "Tuyệt tác dệt thổ cẩm bằng sợi lanh tự nhiên, nhuộm chàm và thêu tay hoa văn kỷ hà rực rỡ, kết hợp váy xếp ly xòe bồng bềnh và trang sức bạc thủ công.",
             details: "Mang lại vẻ đẹp cá tính, hoang sơ và tràn đầy sức sống của núi rừng đại ngàn.",

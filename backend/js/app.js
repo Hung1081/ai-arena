@@ -2126,67 +2126,7 @@ function changeTryOnGarment(newGarmentId) {
         launchVirtualTryOnModal(newGarmentId, currentTryOnUserImage);
     }
 }
-// 1. Hàm chuyển file ảnh trong assets sang Base64
-async function getBase64FromUrl(url) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Không thể tải ảnh áo");
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (err) {
-    console.warn("Lỗi tải ảnh áo local:", err);
-    return null;
-  }
-}
 
-// 2. Hàm gửi ảnh và xử lý ghép mặt AI
-async function blendFaceWithOutfit(userFaceBase64, outfitImagePath) {
-  const apiKey = localStorage.getItem('custom_api_key');
-  
-  const loadingEl = document.getElementById('tryon-blend-loading');
-  const fallbackEl = document.getElementById('tryon-blend-fallback');
-  const resultImgEl = document.getElementById('tryon-blend-result-img');
-
-  try {
-    // Nếu chưa có API Key -> chuyển sang giao diện thủ công
-    if (!apiKey || !userFaceBase64) {
-      if (fallbackEl) fallbackEl.classList.remove('hidden');
-      return;
-    }
-
-    // Lấy ảnh áo local
-    const outfitBase64 = await getBase64FromUrl(outfitImagePath);
-
-    // Gọi Gemini API
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: "Đánh giá nét mặt và cổ phục." },
-            { inlineData: { mimeType: "image/jpeg", data: userFaceBase64 } }
-          ]
-        }]
-      })
-    });
-
-    const data = await response.json();
-    if (fallbackEl) fallbackEl.classList.remove('hidden');
-
-  } catch (error) {
-    console.error("Lỗi ghép ảnh AI:", error);
-    if (fallbackEl) fallbackEl.classList.remove('hidden');
-  } finally {
-    // Đảm bảo 100% TẮT XOAY LOADING sau khi xử lý xong
-    if (loadingEl) loadingEl.classList.add('hidden');
-  }
-}
 async function launchVirtualTryOnModal(garmentId, userImgBase64) {
     currentTryOnGarmentId = garmentId;
     currentTryOnUserImage = userImgBase64;
@@ -2203,7 +2143,7 @@ async function launchVirtualTryOnModal(garmentId, userImgBase64) {
     if (garmentSelect) garmentSelect.value = garmentId;
 
     const catalogGarment = (window.STYLIST_CATALOG && window.STYLIST_CATALOG.garments.find(g => g.id === garmentId)) || {};
-    const outfitPhoto = catalogGarment.photo || "assets/outfits/aodai.png";
+    const outfitPhoto = catalogGarment.photo || "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=800&q=80";
     const garmentName = catalogGarment.name || "Cổ Phục Việt Nam";
 
     // View "So Sánh Song Song" — không đổi, vẫn dùng ảnh tư liệu tham khảo
@@ -2216,7 +2156,6 @@ async function launchVirtualTryOnModal(garmentId, userImgBase64) {
     if (titleEl) titleEl.textContent = garmentName;
 
     modal.classList.remove("hidden");
-    blendFaceWithOutfit(userImgBase64, outfitPhoto);
     switchTryOnTab("blend");
     if (window.lucide) window.lucide.createIcons();
 
