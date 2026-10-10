@@ -2252,7 +2252,7 @@ function kichHoatCheDoDuPhongThuCong(outfitPhoto, userImgBase64) {
 
     if (blendOutfitImg) blendOutfitImg.src = outfitPhoto;
     if (blendFaceImg) blendFaceImg.src = userImgBase64;
-    if (subtitleEl) subtitleEl.textContent = "Chế độ thủ công (AI ghép ảnh không thành công lần này)";
+    if (subtitleEl) subtitleEl.textContent = "Ảnh minh hoạ thử trang phục truyền thống";
 
     fallbackEl.classList.remove("hidden");
     manualControls.classList.remove("hidden");
